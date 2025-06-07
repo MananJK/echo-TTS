@@ -1,0 +1,27 @@
+{
+  "appId": "com.russianchattts.rus-echo",
+  "productName": "RusEcho",
+  "directories": {
+    "output": "electron-build-fresh",
+    "buildResources": "public"
+  },
+  "files": [
+    "dist/**/*",
+    "electron/**/*",
+    "index.js",
+    "package.json"
+  ],
+  "extraMetadata": {
+    "main": "index.js"
+  },
+  "win": {
+    "target": ["portable"],
+    "icon": "public/app-icon-512.png",
+    "signAndEditExecutable": false
+  },
+  "portable": {
+    "artifactName": "RusEcho-Portable.exe"
+  },
+  "asar": false,
+  "compression": "store"
+}
