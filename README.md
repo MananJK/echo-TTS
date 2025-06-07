@@ -75,17 +75,11 @@ The app is also available as a Progressive Web App:
 4. Tap "Add" in the top right corner
 5. The app will appear on your home screen
 
-## Project info
-
-**URL**: https://lovable.dev/projects/6a22e3a0-2477-4cf2-8eb2-66b14e77ff80
 
 ## How can I edit this code?
 
 There are several ways of editing your application.
 
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/6a22e3a0-2477-4cf2-8eb2-66b14e77ff80) and start prompting.
 
 Changes made via Lovable will be committed automatically to this repo.
 
@@ -125,9 +119,6 @@ npm run dev
 - Click on "New codespace" to launch a new Codespace environment.
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/6a22e3a0-2477-4cf2-8eb2-66b14e77ff80) and click on Share -> Publish.
 
 ## Building the Desktop App
 
@@ -138,13 +129,6 @@ To build the desktop app yourself:
 3. Run `npm run electron:build`
 4. The packaged applications will be available in the `electron-dist` folder
 
-## Can I connect a custom domain to my Lovable project?
-
-Yes it is!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
 
 ---
 
