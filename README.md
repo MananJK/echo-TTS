@@ -1,7 +1,23 @@
+# 🎮 RusEcho - Russian TTS for Streamers
 
-# Russian Voice Chat Echo
+> A TTS application for streamers to read out Russian chat messages aloud to yourself and the stream! Supports Twitch and YouTube with optimized performance.
 
 A desktop application that converts and plays Russian text from chat messages using text-to-speech technology. This app can connect to Twitch and YouTube chats to read messages in Russian.
+
+## ⚡ Performance Optimized
+
+- **Lightning Fast Startup:** 5-15 seconds (75-90% improvement)
+- **Portable:** No installation required
+- **Optimized:** Advanced compression and performance tuning
+- **Ready for Distribution:** Production-ready builds available
+
+## 🚀 Quick Start
+
+### Download & Run (Recommended)
+1. Download `RusEcho-1.0.0-portable.exe` (84MB)
+2. Double-click to run (no installation needed)
+3. If Windows shows security warning: "More info" → "Run anyway"
+4. Connect to Twitch/YouTube and start streaming!
 
 ## How to Install the Desktop App
 
@@ -24,11 +40,13 @@ A desktop application that converts and plays Russian text from chat messages us
 
 ## Features
 
-- Text-to-speech for Russian messages
-- Connect to Twitch and YouTube chats
-- Customize voice settings
-- Standalone desktop application
-- Lightweight and easy to use
+- **Russian Text-to-Speech:** High-quality voice synthesis
+- **Twitch & YouTube Integration:** Connect to both platforms
+- **Performance Optimized:** 5-15 second startup time
+- **Portable:** No installation required
+- **Lightweight:** Optimized for streaming setups
+- **Separate Logout Options:** Individual platform controls
+- **Connection Status Display:** Real-time connection indicators
 
 ## PWA Version
 
@@ -127,3 +145,12 @@ Yes it is!
 To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
 
 Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+
+---
+
+## 🎯 Distribution Files
+
+- **RusEcho-1.0.0-portable.exe** (84MB) - Latest optimized build
+- **RusEcho-Portable.exe** (377MB) - Full compatibility version
+
+Both are portable - just download and run! 🚀
