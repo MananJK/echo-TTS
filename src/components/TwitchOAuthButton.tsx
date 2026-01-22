@@ -2,7 +2,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Twitch, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { saveTwitchOAuthToken, hasTwitchOAuthToken, clearTwitchOAuthToken, enableDemoMode } from '@/services/twitchService';
+import { saveTwitchOAuthToken, hasTwitchOAuthToken, clearTwitchOAuthToken } from '@/services/twitchService';
+import { openExternalAuth, onAuthCallback, type AuthCallbackData, isTauriAvailable } from '@/lib/tauri-api';
 
 // IMPORTANT: Replace with your Twitch Client ID from https://dev.twitch.tv/console
 const TWITCH_CLIENT_ID = 'udjuiavbj15nv9adih3dioaoj969ny'; // Public Twitch Client ID used by web player
@@ -59,11 +60,11 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
       }
     }
 
-    // Handle Electron IPC events if in Electron
-    const handleElectronCallback = (event: MessageEvent) => {
+    // Handle Electron/Tauri IPC events
+    const handleAuthCallback = (event: MessageEvent) => {
       console.log("Received message event:", event.data);
       if (event.data && event.data.type === 'twitch-oauth-callback' && event.data.token) {
-        console.log("Twitch token received in handleElectronCallback");
+        console.log("Twitch token received in handleAuthCallback");
         saveTwitchOAuthToken(event.data.token);
         setIsAuthorized(true);
         onAuthChange(true);
@@ -73,61 +74,56 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
           title: "Twitch Authentication Successful",
           description: "You can now connect to your Twitch channels"
         });
+      } else if (event.data && event.data.error) {
+        console.error("Auth error from IPC:", event.data.error);
+        setIsAuthenticating(false);
+        
+        toast({
+          title: "Authentication Failed",
+          description: `Twitch error: ${event.data.error}`,
+          variant: "destructive"
+        });
       }
     };
 
-    // Add event listener for Electron auth callbacks
-    window.addEventListener('message', handleElectronCallback);
+    // Add event listener for Electron/Tauri auth callbacks
+    window.addEventListener('message', handleAuthCallback);
     
-    // Auto-setup listener for Electron
-    if (typeof window.electron !== 'undefined') {
-      console.log("Setting up Electron auth callback listener for Twitch");
-      window.electron.onAuthCallback((data) => {
-        console.log("Auth callback received in renderer for Twitch:", data);
-        if (data && data.type === 'twitch-oauth-callback') {
-          if (data.token) {
-            console.log("Processing Twitch token in onAuthCallback");
-            saveTwitchOAuthToken(data.token);
-            setIsAuthorized(true);
-            onAuthChange(true);
-            setIsAuthenticating(false);
-            
-            toast({
-              title: "Twitch Authentication Successful",
-              description: "You can now connect to your Twitch channels"
-            });
-          } else if (data.error) {
-            console.error("Auth error from Electron:", data.error);
-            setIsAuthenticating(false);
-            
-            toast({
-              title: "Authentication Failed",
-              description: `Twitch error: ${data.error}`,
-              variant: "destructive"
-            });
-          }
+    // Setup listener for Tauri auth callbacks
+    const unlistenAuth = onAuthCallback((data) => {
+      console.log("Auth callback received from Tauri:", data);
+      if (data.type === 'twitch-oauth-callback') {
+        if (data.token) {
+          console.log("Processing Twitch token from Tauri callback");
+          saveTwitchOAuthToken(data.token);
+          setIsAuthorized(true);
+          onAuthChange(true);
+          setIsAuthenticating(false);
+          
+          toast({
+            title: "Twitch Authentication Successful",
+            description: "You can now connect to your Twitch channels"
+          });
+        } else if (data.error) {
+          console.error("Auth error from Tauri:", data.error);
+          setIsAuthenticating(false);
+          
+          toast({
+            title: "Authentication Failed",
+            description: `Twitch error: ${data.error}`,
+            variant: "destructive"
+          });
         }
-      });
-    }
+      }
+    });
     
     return () => {
-      window.removeEventListener('message', handleElectronCallback);
+      window.removeEventListener('message', handleAuthCallback);
+      unlistenAuth();
     };
   }, [onAuthChange, toast]);
-
-  // Enable demo mode for testing purposes
-  const handleDemoMode = () => {
-    enableDemoMode();
-    setIsAuthorized(true);
-    onAuthChange(true);
-    
-    toast({
-      title: "Demo Mode Activated",
-      description: "You're now using simulated Twitch chat"
-    });
-  };
-
-  const handleConnect = () => {
+ 
+  const handleConnect = async () => {
     setIsAuthenticating(true);
     
     // Twitch OAuth implicit flow
@@ -151,12 +147,11 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     const fullAuthUrl = authUrl.toString();
     console.log('Twitch Auth: Full OAuth URL:', fullAuthUrl);
     
-    // Check if we're running in Electron
-    if (typeof window.electron !== 'undefined') {
+    // Check if we're running in Electron/Tauri
+    if (isTauriAvailable()) {
       try {
-        console.log("Twitch Auth: Opening OAuth URL via Electron");
-        // Use Electron's openExternal to authenticate in user's default browser
-        window.electron.openExternalAuth(fullAuthUrl, finalRedirectUri);
+        console.log("Twitch Auth: Opening OAuth URL via Tauri");
+        await openExternalAuth(fullAuthUrl, finalRedirectUri);
       } catch (error) {
         console.error("Twitch Auth: Error opening auth URL:", error);
         setIsAuthenticating(false);
@@ -168,8 +163,8 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
         });
       }
     } else {
-      // Traditional web flow
-      console.log("Twitch Auth: Opening OAuth URL via web flow");
+      // Fallback to web flow
+      console.log("Twitch Auth: Using web flow");
       window.location.href = fullAuthUrl;
     }
   };
@@ -207,13 +202,6 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
           >
             <Twitch className="mr-2 h-4 w-4" />
             {isAuthenticating ? 'Authenticating...' : 'Log in with Twitch'}
-          </Button>
-          <Button 
-            variant="outline" 
-            className="bg-gray-500 text-white hover:bg-gray-600 w-full mt-2"
-            onClick={handleDemoMode}
-          >
-            Use Demo Mode
           </Button>
         </>
       )}

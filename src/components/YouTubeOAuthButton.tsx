@@ -2,7 +2,8 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Youtube, CheckCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { saveYoutubeOAuthToken, hasYoutubeOAuthToken, clearYoutubeOAuthToken, enableDemoMode } from '@/services/youtubeService';
+import { saveYoutubeOAuthToken, hasYoutubeOAuthToken, clearYoutubeOAuthToken } from '@/services/youtubeService';
+import { openExternalAuth, type AuthCallbackData, isTauriAvailable } from '@/lib/tauri-api';
 
 // Google OAuth Client ID - Update this with your new client ID from Google Cloud Console
 // Make sure this client has http://localhost:3000/callback configured as a valid redirect URI
@@ -63,7 +64,7 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
         setIsAuthenticating(false);
         setAuthError(null);
         
-        // Clear the URL fragment
+        // Clear URL fragment
         window.history.pushState("", document.title, window.location.pathname + window.location.search);
         
         toast({
@@ -81,17 +82,17 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
           variant: "destructive"
         });
         
-        // Clear the URL fragment
+        // Clear URL fragment
         window.history.pushState("", document.title, window.location.pathname + window.location.search);
       }
     }
     
-    // Handle Electron IPC events if in Electron
-    const handleElectronCallback = (event: MessageEvent<YouTubeAuthMessageData>) => {
+    // Handle Electron/Tauri IPC events
+    const handleAuthCallback = (event: MessageEvent<YouTubeAuthMessageData>) => {
       console.log("Received message event for YouTube:", event.data);
       if (event.data && event.data.type === 'youtube-oauth-callback') {
         if (event.data.token) {
-          console.log("YouTube token received in handleElectronCallback");
+          console.log("YouTube token received in handleAuthCallback");
           saveYoutubeOAuthToken(event.data.token);
           setIsAuthorized(true);
           onAuthChange(true);
@@ -103,7 +104,7 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
             description: "You can now connect to your YouTube live streams"
           });
         } else if (event.data.error) {
-          console.error("Auth error from Electron:", event.data.error);
+          console.error("Auth error from IPC:", event.data.error);
           setIsAuthenticating(false);
           setAuthError(event.data.error);
           
@@ -116,60 +117,46 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
       }
     };
 
-    // Add event listener for Electron auth callbacks
-    window.addEventListener('message', handleElectronCallback);
+    // Add event listener for Electron/Tauri auth callbacks
+    window.addEventListener('message', handleAuthCallback);
     
-    // Auto-setup listener for Electron
-    if (typeof window.electron !== 'undefined') {
-      console.log("Setting up Electron auth callback listener for YouTube");
-      window.electron.onAuthCallback((data) => {
-        console.log("Auth callback received in renderer for YouTube:", data);
-        if (data && data.type === 'youtube-oauth-callback') {
-          if (data.token) {
-            console.log("Processing YouTube token in onAuthCallback");
-            saveYoutubeOAuthToken(data.token);
-            setIsAuthorized(true);
-            onAuthChange(true);
-            setIsAuthenticating(false);
-            setAuthError(null);
-            
-            toast({
-              title: "YouTube Authentication Successful",
-              description: "You can now connect to your YouTube live streams"
-            });
-          } else if (data.error) {
-            console.error("Auth error from Electron:", data.error);
-            setIsAuthenticating(false);
-            setAuthError(data.error);
-            
-            toast({
-              title: "Authentication Failed",
-              description: `YouTube error: ${data.error}`,
-              variant: "destructive"
-            });
-          }
+    // Setup listener for Tauri auth callbacks
+    const unlistenAuth = onAuthCallback((data) => {
+      console.log("Auth callback received from Tauri for YouTube:", data);
+      if (data.type === 'youtube-oauth-callback') {
+        if (data.token) {
+          console.log("Processing YouTube token from Tauri callback");
+          saveYoutubeOAuthToken(data.token);
+          setIsAuthorized(true);
+          onAuthChange(true);
+          setIsAuthenticating(false);
+          setAuthError(null);
+          
+          toast({
+            title: "YouTube Authentication Successful",
+            description: "You can now connect to your YouTube live streams"
+          });
+        } else if (data.error) {
+          console.error("Auth error from Tauri:", data.error);
+          setIsAuthenticating(false);
+          setAuthError(data.error);
+          
+          toast({
+            title: "Authentication Failed",
+            description: `YouTube error: ${data.error}`,
+            variant: "destructive"
+          });
         }
-      });
-    }
+      }
+    });
     
     return () => {
-      window.removeEventListener('message', handleElectronCallback);
+      window.removeEventListener('message', handleAuthCallback);
+      unlistenAuth();
     };
   }, [onAuthChange, toast]);
-
-  // Enable demo mode for testing purposes
-  const handleDemoMode = () => {
-    enableDemoMode();
-    setIsAuthorized(true);
-    onAuthChange(true);
-    
-    toast({
-      title: "Demo Mode Activated",
-      description: "You're now using simulated YouTube chat"
-    });
-  };
-
-  const handleConnect = () => {
+ 
+  const handleConnect = async () => {
     setIsAuthenticating(true);
     setAuthError(null);
     
@@ -204,12 +191,11 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
     
     console.log('YouTube OAuth URL:', authUrl.toString());
     
-    // Check if we're running in Electron
-    if (typeof window.electron !== 'undefined') {
-      console.log("Opening OAuth URL via Electron");
+    // Check if we're running in Electron/Tauri
+    if (isTauriAvailable()) {
+      console.log("YouTube Auth: Opening OAuth URL via Tauri");
       try {
-        // Use Electron's openExternal to authenticate in user's default browser
-        window.electron.openExternalAuth(authUrl.toString(), REDIRECT_URI);
+        await openExternalAuth(authUrl.toString(), REDIRECT_URI);
       } catch (error) {
         console.error("Error opening auth URL:", error);
         setIsAuthenticating(false);
@@ -222,7 +208,8 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
         });
       }
     } else {
-      // Traditional web flow
+      // Fallback to web flow
+      console.log("YouTube Auth: Using web flow");
       window.location.href = authUrl.toString();
     }
   };
@@ -261,20 +248,13 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
             <Youtube className="mr-2 h-4 w-4" />
             {isAuthenticating ? 'Authenticating...' : 'Log in with YouTube'}
           </Button>
-          <Button 
-            variant="outline" 
-            className="bg-gray-500 text-white hover:bg-gray-600 w-full mt-2"
-            onClick={handleDemoMode}
-          >
-            Use Demo Mode
-          </Button>
         </>
       )}
       <p className="text-xs text-muted-foreground">
         {isAuthorized 
           ? "Authorized with YouTube. You can now connect to live streams." 
           : authError 
-            ? `Auth error: ${authError}. Try again or use Demo Mode.`
+            ? `Auth error: ${authError}. Try again.`
             : "Authorize with YouTube to connect to your live streams."}
       </p>
     </div>
