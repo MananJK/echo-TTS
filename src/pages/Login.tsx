@@ -7,7 +7,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import TwitchOAuthButton from '@/components/TwitchOAuthButton';
 import YouTubeOAuthButton from '@/components/YouTubeOAuthButton';
-import { enableDemoMode, hasTwitchOAuthToken } from '@/services/twitchService';
+import { hasTwitchOAuthToken } from '@/services/twitchService';
 import { hasYoutubeOAuthToken } from '@/services/youtubeService';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,17 +24,8 @@ const Login = () => {
       navigate('/');
     }
   }, [isTwitchAuthed, isYoutubeAuthed, navigate]);
-
-  // Handle enabling demo mode and navigating to app
+ 
   const handleContinueToApp = () => {
-    // Set demo mode flag
-    enableDemoMode();
-    
-    toast({
-      title: "Demo Mode Activated",
-      description: "You're now using the app in demo mode with simulated chat"
-    });
-    
     // Navigate to main app
     navigate('/');
   };
@@ -46,11 +37,11 @@ const Login = () => {
         <div className="text-center mb-8">
           <h1 className="text-3xl md:text-4xl font-bold flex items-center justify-center gap-2">
             <span className="bg-gradient-to-r from-stream-accent to-stream-highlight bg-clip-text text-transparent">
-              RusEcho
+              StreamTTS
             </span>
           </h1>
           <p className="text-muted-foreground mt-2">
-            Connect to have Russian chat messages read aloud during your streams
+            Connect to have chat messages read aloud during your streams
           </p>
         </div>
         
@@ -64,21 +55,6 @@ const Login = () => {
               <li>Click the "Log in" button to authorize the app</li>
               <li>Once logged in, you'll be automatically directed to the app</li>
             </ol>
-          </AlertDescription>
-        </Alert>
-        
-        {/* Demo Mode Option */}
-        <Alert className="mb-8 bg-yellow-500/10 border-yellow-500/50">
-          <AlertTriangle className="h-4 w-4 text-yellow-500" />
-          <AlertTitle>Don't have a streaming account?</AlertTitle>
-          <AlertDescription className="mt-2">
-            <p>You can still try the app without connecting to a streaming platform.</p>
-            <div className="mt-4">
-              <Button onClick={handleContinueToApp} size="sm" className="flex items-center gap-2">
-                Continue in Demo Mode
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
           </AlertDescription>
         </Alert>
         
