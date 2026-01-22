@@ -9,9 +9,8 @@ let twitchClients: { [channelName: string]: Client } = {};
 // Track recent connection errors to prevent duplicate notifications
 const recentErrors: { [channelName: string]: { message: string, timestamp: number } } = {};
 
-// Twitch OAuth and API integration
+// Twitch OAuth integration
 const TWITCH_TOKEN_KEY = 'twitchOAuthToken';
-const DEMO_MODE_KEY = 'demoModeEnabled';
 
 export const saveTwitchOAuthToken = (token: string): void => {
   console.log("TwitchService: Saving OAuth token to localStorage");
@@ -44,21 +43,6 @@ export const clearTwitchOAuthToken = (): void => {
   }
 };
 
-// Set demo mode flag to bypass authentication
-export const enableDemoMode = (): void => {
-  localStorage.setItem(DEMO_MODE_KEY, 'true');
-};
-
-// Check if demo mode is enabled
-export const isDemoModeEnabled = (): boolean => {
-  return localStorage.getItem(DEMO_MODE_KEY) === 'true';
-};
-
-// Clear demo mode flag
-export const disableDemoMode = (): void => {
-  localStorage.removeItem(DEMO_MODE_KEY);
-};
-
 // Helper function to check if we should report an error
 // This prevents duplicate error notifications for the same channel/error
 const shouldReportError = (channelName: string, errorMessage: string): boolean => {
@@ -88,40 +72,10 @@ export const connectToTwitchChat = (
   }
 
   try {
-    // First check if we're in demo mode
-    if (isDemoModeEnabled()) {
-      // Set up a simulated connection for demo mode
-      onConnectionChanged(true);
-
-      // Create a fake interval that generates demo messages
-      const intervalId = setInterval(() => {
-        const demoMessages = [
-          "Привет, как дела?",
-          "!г Это тестовое сообщение",
-          "Отличный стрим!",
-          "!г Привет, я русский",
-          "!г Всем привет в чате",
-          "Что нового?"
-        ];
-
-        const randomMessage = demoMessages[Math.floor(Math.random() * demoMessages.length)];
-        const randomUsername = `Viewer${Math.floor(Math.random() * 1000)}`;
-
-        onMessageReceived(randomUsername, randomMessage);
-      }, 8000); // Send a message every 8 seconds
-
-      // Store the interval as a "client" for clean-up purposes
-      twitchClients[channelName] = {
-        disconnect: () => clearInterval(intervalId)
-      } as unknown as Client;
-
-      return;
-    }
-
     // Get token from localStorage
     const token = localStorage.getItem(TWITCH_TOKEN_KEY);
     if (!token) {
-      onConnectionChanged(false, 'Not authenticated with Twitch');
+      onConnectionChanged(false, 'Not authenticated with Twitch. Please connect using OAuth.');
       return;
     }
 

@@ -19,7 +19,6 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // CRITICAL: Always use relative paths (./) for Electron
   base: "./",
   build: {
     // Use source maps only in development mode

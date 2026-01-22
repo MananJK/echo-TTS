@@ -12,8 +12,7 @@ import {
   saveTwitchOAuthToken,
   getTwitchUsername,
   clearTwitchOAuthToken,
-  isTwitchConnected,
-  disableDemoMode as disableTwitchDemoMode
+  isTwitchConnected
 } from '@/services/twitchService';
 import { 
   connectToYouTubeLiveChat,
@@ -22,10 +21,7 @@ import {
   getYoutubeChannelId,
   clearYoutubeOAuthToken,
   fetchYouTubeLiveBroadcasts,
-  enableDemoMode,
-  isDemoMode,
   validateToken,
-  disableDemoMode as disableYoutubeDemoMode,
   checkLiveStreamingEnabled
 } from '@/services/youtubeService';
 import { Link } from 'react-router-dom';
@@ -56,13 +52,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   // Debounce connection attempts to prevent rapid reconnections
   const connectionAttempts = useRef<Record<string, number>>({});
   const lastConnectionAttempt = useRef<Record<string, number>>({});
-
-  // Clear demo modes on component mount to prevent automatic activation
-  useEffect(() => {
-    console.log("ChatConnections: Clearing any existing demo modes");
-    disableTwitchDemoMode();
-    disableYoutubeDemoMode();
-  }, []);
 
   // Update connectionsRef whenever connections change
   useEffect(() => {

@@ -265,11 +265,11 @@ const Index = () => {
           <div>
             <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
                 <span className="bg-gradient-to-r from-stream-accent to-stream-highlight bg-clip-text text-transparent">
-                  RusEcho
+                  StreamTTS
                 </span>
               </h1>
               <p className="text-muted-foreground mt-1">
-                TTS for Russian chat messages in your stream
+                Free TTS for streaming chat messages in your stream
               </p>
           </div>
           

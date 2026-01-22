@@ -45,7 +45,114 @@ export async function generateSpeechFromText(options: TTSRequestOptions): Promis
   return await response.arrayBuffer();
 }
 
-// New function to use browser's built-in speech synthesis
+// Cross-platform TTS service
+export class CrossPlatformTTS {
+  private static isSpeechSynthesisSupported(): boolean {
+    return 'speechSynthesis' in window;
+  }
+
+  // Play text using browser's built-in speech synthesis
+  static useBrowserTTS(
+    text: string, 
+    onPlaybackStart: () => void,
+    onPlaybackEnd: () => void,
+    volume: number = 1.0,
+    voiceName?: string
+  ): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.isSpeechSynthesisSupported()) {
+        reject(new Error('Your browser does not support speech synthesis'));
+        return;
+      }
+
+      onPlaybackStart();
+      
+      // Cancel any ongoing speech to prevent overlapping
+      window.speechSynthesis.cancel();
+      
+      // Create a new SpeechSynthesisUtterance
+      const utterance = new SpeechSynthesisUtterance(text);
+      
+      // Set the volume
+      utterance.volume = volume;
+      
+      // Get available voices and try to find a Russian one if no specific voice is specified
+      const voices = window.speechSynthesis.getVoices();
+      
+      if (voiceName) {
+        // Try to find the specified voice
+        const voice = voices.find(v => v.name === voiceName);
+        if (voice) {
+          utterance.voice = voice;
+        }
+      } else {
+        // First, try to find Microsoft Pavel specifically (Windows)
+        const pavelVoice = voices.find(v => 
+          v.name.includes('Pavel') || 
+          v.name.includes('Microsoft Pavel')
+        );
+        
+        // If Pavel is found, use it
+        if (pavelVoice) {
+          utterance.voice = pavelVoice;
+        } else {
+          // Otherwise, fall back to any Russian voice
+          const russianVoice = voices.find(v => 
+            v.lang.startsWith('ru') || 
+            v.name.includes('Russian') || 
+            v.name.includes('русский')
+          );
+          
+          if (russianVoice) {
+            utterance.voice = russianVoice;
+          }
+        }
+      }
+      
+      // Handle playback end
+      utterance.onend = () => {
+        onPlaybackEnd();
+        resolve();
+      };
+      
+      // Handle errors
+      utterance.onerror = (event) => {
+        onPlaybackEnd();
+        reject(new Error(`Speech synthesis error: ${event.error}`));
+      };
+      
+      // Start speaking
+      window.speechSynthesis.speak(utterance);
+    });
+  }
+
+  // Get available browser voices
+  static getAvailableBrowserVoices(): SpeechSynthesisVoice[] {
+    if (!this.isSpeechSynthesisSupported()) {
+      return [];
+    }
+    
+    return window.speechSynthesis.getVoices();
+  }
+
+  // Get recommended Russian voices
+  static getRecommendedVoices(): SpeechSynthesisVoice[] {
+    const voices = this.getAvailableBrowserVoices();
+    
+    // Priority: Russian voices, then voices with Russian in name
+    const recommended = voices.filter(v => 
+      v.lang.startsWith('ru') || 
+      v.name.includes('Russian') || 
+      v.name.includes('русский') ||
+      v.name.includes('Pavel')
+    );
+    
+    // If no Russian voices, return empty array
+    return recommended.length > 0 ? recommended : [];
+  }
+}
+
+// New function to use browser's built-in speech synthesis (legacy compatibility)
 export function useBrowserTTS(
   text: string, 
   onPlaybackStart: () => void,
@@ -53,69 +160,7 @@ export function useBrowserTTS(
   volume: number = 1.0,
   voiceName?: string
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    // Check if speech synthesis is supported
-    if (!('speechSynthesis' in window)) {
-      reject(new Error('Your browser does not support speech synthesis'));
-      return;
-    }
-
-    onPlaybackStart();
-    
-    // Create a new SpeechSynthesisUtterance
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Set the volume
-    utterance.volume = volume;
-    
-    // Get available voices and try to find a Russian one if no specific voice is specified
-    const voices = window.speechSynthesis.getVoices();
-    
-    if (voiceName) {
-      // Try to find the specified voice
-      const voice = voices.find(v => v.name === voiceName);
-      if (voice) {
-        utterance.voice = voice;
-      }
-    } else {
-      // First, try to find Microsoft Pavel specifically
-      const pavelVoice = voices.find(v => 
-        v.name.includes('Pavel') || 
-        v.name.includes('Microsoft Pavel')
-      );
-      
-      // If Pavel is found, use it
-      if (pavelVoice) {
-        utterance.voice = pavelVoice;
-      } else {
-        // Otherwise, fall back to any Russian voice
-        const russianVoice = voices.find(v => 
-          v.lang.startsWith('ru') || 
-          v.name.includes('Russian') || 
-          v.name.includes('русский')
-        );
-        
-        if (russianVoice) {
-          utterance.voice = russianVoice;
-        }
-      }
-    }
-    
-    // Handle playback end
-    utterance.onend = () => {
-      onPlaybackEnd();
-      resolve();
-    };
-    
-    // Handle errors
-    utterance.onerror = (event) => {
-      onPlaybackEnd();
-      reject(new Error(`Speech synthesis error: ${event.error}`));
-    };
-    
-    // Start speaking
-    window.speechSynthesis.speak(utterance);
-  });
+  return CrossPlatformTTS.useBrowserTTS(text, onPlaybackStart, onPlaybackEnd, volume, voiceName);
 }
 
 export async function playMessageAudio(
@@ -173,11 +218,12 @@ export async function playMessageAudio(
   }
 }
 
-// Helper function to get available browser voices
+// Helper function to get available browser voices (legacy compatibility)
 export function getAvailableBrowserVoices(): SpeechSynthesisVoice[] {
-  if (!('speechSynthesis' in window)) {
-    return [];
-  }
-  
-  return window.speechSynthesis.getVoices();
+  return CrossPlatformTTS.getAvailableBrowserVoices();
+}
+
+// Helper function to get recommended Russian voices
+export function getRecommendedVoices(): SpeechSynthesisVoice[] {
+  return CrossPlatformTTS.getRecommendedVoices();
 }

@@ -34,31 +34,21 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     const twitchAuth = hasTwitchOAuthToken();
     const youtubeAuth = hasYoutubeOAuthToken();
     
-    // Reset demo mode on startup
-    if (!twitchAuth && !youtubeAuth) {
-      localStorage.removeItem('youtube_demo_mode');
-    }
-    
-    // Async validation of YouTube token if present
+    // Simplified auth validation - just check if tokens exist
     const validateAuth = async () => {
       try {
         const startTime = performance.now();
         console.log('Validating authentication...');
         
-        // Use mutable variables to track auth state
-        let validTwitchAuth = twitchAuth;
+        // Validate YouTube token if present
         let validYoutubeAuth = youtubeAuth;
-        
         if (validYoutubeAuth) {
           const token = localStorage.getItem('youtube_oauth_token');
           if (token) {
             try {
-              // Validate YouTube token in background
-              console.log('Validating YouTube token...');
               const isValid = await validateYoutubeToken(token);
               if (!isValid) {
                 console.warn('YouTube token validation failed on startup');
-                // Clear YouTube token if invalid to prevent auth issues
                 localStorage.removeItem('youtube_oauth_token');
                 validYoutubeAuth = false;
               } else {
@@ -66,14 +56,13 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
               }
             } catch (err) {
               console.error('Error validating YouTube token:', err);
-              // On error, consider the token invalid
               localStorage.removeItem('youtube_oauth_token');
               validYoutubeAuth = false;
             }
           }
         }
         
-        const authed = validTwitchAuth || validYoutubeAuth;
+        const authed = twitchAuth || validYoutubeAuth;
         setIsAuthed(authed);
         setIsChecking(false);
         
@@ -81,7 +70,6 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
         console.log(`Authentication validated in ${(endTime - startTime).toFixed(2)}ms. Authenticated: ${authed}`);
       } catch (error) {
         console.error('Unexpected error during auth validation:', error);
-        // On unexpected error, fall back to local token check
         setIsAuthed(twitchAuth || youtubeAuth);
         setIsChecking(false);
       }
@@ -107,7 +95,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <Suspense fallback={<Loading isStartup={true} message="Loading RusEcho..." />}>
+      <Suspense fallback={<Loading isStartup={true} message="Loading StreamTTS..." />}>
         <HashRouter>
           <Routes>
             <Route path="/login" element={<Login />} />

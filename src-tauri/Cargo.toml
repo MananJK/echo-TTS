@@ -1,0 +1,36 @@
+[package]
+name = "app"
+version = "2.0.0"
+description = "Free TTS application for streaming chat messages in your stream"
+authors = ["Nerve"]
+license = ""
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.5.3", features = [] }
+
+[dependencies]
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+log = "0.4"
+tauri = { version = "2.9.5", features = [] }
+tauri-plugin-log = "2"
+tokio = { version = "1", features = ["full"] }
+axum = "0.7"
+hyper = "1.0"
+hyper-util = "0.1"
+http-body-util = "0.1"
+tower = "0.5"
+tower-http = { version = "0.5", features = ["fs", "cors", "trace"] }
+anyhow = "1.0"
+url = "2.5"
+reqwest = { version = "0.12", features = ["json"] }
+once_cell = "1.19"
+open = "5.0"
+tauri-plugin-shell = "2.3.4"

@@ -2,16 +2,6 @@ import { Message } from '@/types/message';
 
 // YouTube Service for managing YouTube Live Chat connections
 const YOUTUBE_TOKEN_KEY = 'youtube_oauth_token';
-const YOUTUBE_DEMO_MODE_KEY = 'youtube_demo_mode';
-
-// Mock data for demo mode
-const DEMO_MESSAGES = [
-  { displayName: 'YouTubeUser1', message: 'Привет! Как дела?', color: '#FF0000' },
-  { displayName: 'FanFromMoscow', message: 'Отличный стрим сегодня!', color: '#00FF00' },
-  { displayName: 'RussianGamer', message: 'Можешь сыграть в эту игру?', color: '#0000FF' },
-  { displayName: 'StreamSupporter', message: 'Спасибо за контент!', color: '#FFFF00' },
-  { displayName: 'NewViewer', message: 'Я первый раз на твоём стриме', color: '#FF00FF' }
-];
 
 // Check if we have a valid YouTube OAuth token
 export const hasYoutubeOAuthToken = (): boolean => {
@@ -19,12 +9,10 @@ export const hasYoutubeOAuthToken = (): boolean => {
   return !!token;
 };
 
-// Save the YouTube OAuth token to local storage
+// Save YouTube OAuth token to local storage
 export const saveYoutubeOAuthToken = async (token: string): Promise<boolean> => {
   console.log("YouTubeService: Saving token to localStorage", token.substring(0, 10) + "...");
   localStorage.setItem(YOUTUBE_TOKEN_KEY, token);
-  // Clear any demo mode flag when using real authentication
-  localStorage.removeItem(YOUTUBE_DEMO_MODE_KEY);
   
   // Validate token immediately after saving
   const isValid = await validateToken(token);
@@ -91,35 +79,11 @@ export const getYoutubeOAuthToken = (): string | null => {
 // Clear the YouTube OAuth token
 export const clearYoutubeOAuthToken = (): void => {
   localStorage.removeItem(YOUTUBE_TOKEN_KEY);
-  localStorage.removeItem(YOUTUBE_DEMO_MODE_KEY);
-};
-
-// Enable demo mode for testing without authentication
-export const enableDemoMode = (): void => {
-  localStorage.setItem(YOUTUBE_DEMO_MODE_KEY, 'true');
-};
-
-// Check if demo mode is enabled
-export const isDemoMode = (): boolean => {
-  return localStorage.getItem(YOUTUBE_DEMO_MODE_KEY) === 'true';
-};
-
-// Disable demo mode for YouTube
-export const disableDemoMode = (): void => {
-  localStorage.removeItem(YOUTUBE_DEMO_MODE_KEY);
 };
 
 // Fetch active YouTube live broadcasts (improved error handling and resilience)
 export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
   try {
-    // Check if in demo mode
-    if (isDemoMode()) {
-      console.log("YouTube Service: Using demo mode");
-      return [
-        { id: 'demo_broadcast', snippet: { title: 'Demo Live Stream' } }
-      ];
-    }
-
     const token = getYoutubeOAuthToken();
     if (!token) {
       console.error("YouTube Service: No OAuth token available");
@@ -205,7 +169,7 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
       throw new Error('Unexpected response format from YouTube API.');
     }
     
-    // If no broadcasts found, return empty array instead of enabling demo mode
+    // If no broadcasts found, return empty array
     if (!data.items || data.items.length === 0) {
       console.log("YouTube Service: No active broadcasts found");
       return [];
@@ -221,7 +185,6 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
       throw new Error('YouTube API is not responding. Please check your internet connection and try again later.');
     }
     
-    // Don't automatically enable demo mode on errors
     console.error('YouTube Service: Error fetching broadcasts:', error);
     throw error;
   }
@@ -233,38 +196,6 @@ export const connectToYouTubeLiveChat = async (
   onMessage: (message: any) => void,
   onError: (error: Error) => void
 ): Promise<{ disconnect: () => void }> => {
-  // For demo mode, simulate messages
-  if (isDemoMode() || broadcastId === 'demo_broadcast') {
-    console.log('Starting YouTube demo mode');
-    let demoInterval: NodeJS.Timeout;
-    
-    const sendDemoMessage = () => {
-      const randomMessage = DEMO_MESSAGES[Math.floor(Math.random() * DEMO_MESSAGES.length)];
-      onMessage({
-        id: `demo_${Date.now()}`,
-        authorDetails: {
-          displayName: randomMessage.displayName,
-          profileImageUrl: 'https://via.placeholder.com/36',
-          channelId: `demo_channel_${randomMessage.displayName}`
-        },
-        snippet: {
-          displayMessage: randomMessage.message,
-          publishedAt: new Date().toISOString()
-        },
-        userColor: randomMessage.color
-      });
-    };
-    
-    demoInterval = setInterval(sendDemoMessage, 5000);
-    setTimeout(sendDemoMessage, 1000); // Send first message quickly
-    
-    return {
-      disconnect: () => {
-        clearInterval(demoInterval);
-      }
-    };
-  }
-  
   // Real YouTube chat connection (improved resilience)
   try {
     const token = getYoutubeOAuthToken();
@@ -502,33 +433,6 @@ function generateColorFromChannelId(channelId: string): string {
   const hue = Math.abs(hash % 360);
   return `hsl(${hue}, 70%, 50%)`;
 }
-
-// Diagnostic function to help troubleshoot YouTube connection issues
-export const diagnosYouTubeConnection = async (): Promise<string> => {
-  try {
-    const token = getYoutubeOAuthToken();
-    if (!token) {
-      return "❌ No YouTube OAuth token found";
-    }
-
-    // Test basic API access
-    const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const channelName = data.items?.[0]?.snippet?.title || 'Unknown';
-      return `✅ YouTube API working - Connected as: ${channelName}`;
-    } else {
-      return `❌ YouTube API error: ${response.status} ${response.statusText}`;
-    }
-  } catch (error) {
-    return `❌ Connection test failed: ${error instanceof Error ? error.message : 'Unknown error'}`;
-  }
-};
 
 // Get the YouTube channel ID for the authenticated user
 export const getYoutubeChannelId = async (): Promise<string | null> => {
