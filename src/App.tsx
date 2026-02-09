@@ -7,6 +7,8 @@ import { useEffect, useState, lazy, Suspense } from "react";
 import { hasYoutubeOAuthToken, validateToken as validateYoutubeToken } from "./services/youtubeService";
 import { hasTwitchOAuthToken } from "./services/twitchService";
 import Loading from "./components/Loading";
+import { AlertService } from "./services/alertsService";
+import AlertNotification from "./components/AlertNotification";
 
 // Lazy load page components to improve startup time
 const Index = lazy(() => import("./pages/Index"));
@@ -17,9 +19,9 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // 5 minutes
-      gcTime: 1000 * 60 * 30, // 30 minutes
-      retry: 1, // Only retry once
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 30,
+      retry: 1,
     },
   },
 });
@@ -90,30 +92,44 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <Suspense fallback={<Loading message="Loading application..." />}>{children}</Suspense>;
 };
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <Suspense fallback={<Loading isStartup={true} message="Loading StreamTTS..." />}>
-        <HashRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <Index />
-                </ProtectedRoute>
-              } 
-            />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </HashRouter>
-      </Suspense>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+const App = () => {
+  useEffect(() => {
+    try {
+      console.log('Initializing alert service...');
+      const alertService = AlertService.getInstance();
+      alertService.initialize();
+      console.log('Alert service initialized successfully');
+      return () => alertService.cleanup();
+    } catch (error) {
+      console.error('Failed to initialize alert service:', error);
+    }
+  }, []);
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <AlertNotification />
+        <Suspense fallback={<Loading isStartup={true} message="Loading StreamTTS..." />}>
+          <HashRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route 
+                path="/" 
+                element={
+                  <ProtectedRoute>
+                    <Index />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </HashRouter>
+        </Suspense>
+      </TooltipProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;
