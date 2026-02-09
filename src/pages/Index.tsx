@@ -17,6 +17,7 @@ const VolumeControl = lazy(() => import('@/components/VolumeControl'));
 const ApiKeyInput = lazy(() => import('@/components/ApiKeyInput'));
 const ChatConnections = lazy(() => import('@/components/ChatConnections').then(module => ({ default: module.default })));
 const ConnectionStatusPanel = lazy(() => import('@/components/ConnectionStatusPanel'));
+const AlertSettings = lazy(() => import('@/components/AlertSettings'));
 
 import { Message } from '@/types/message';
 import { ChatConnection } from '@/types/chatSource';
@@ -25,6 +26,8 @@ import { hasTwitchOAuthToken, connectToTwitchChat, disconnectFromTwitchChat } fr
 import { hasYoutubeOAuthToken, connectToYouTubeLiveChat } from '@/services/youtubeService';
 
 const Index = () => {
+  console.log('Index component rendering...');
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [apiKey, setApiKey] = useState<string>('');
   const [volume, setVolume] = useState<number>(0.7);
@@ -344,6 +347,11 @@ const Index = () => {
                 
                 <TabsContent value="settings" className="flex-1 flex flex-col">
                   <div className="space-y-6 flex-1">
+                    {/* Alert Settings */}
+                    <Suspense fallback={<div className="h-48 bg-card/50 rounded-lg animate-pulse"></div>}>
+                      <AlertSettings />
+                    </Suspense>
+                    
                     {/* Security Notice */}
                     <Alert className="bg-yellow-500/10 border-yellow-500/50">
                       <Info className="h-4 w-4 text-yellow-500" />
