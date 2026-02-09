@@ -103,7 +103,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
                 console.log("ChatConnections: No active broadcasts found");
                 toast({
                   title: "No Active YouTube Streams",
-                  description: "No active streams found. You can manually enable demo mode if needed for testing.",
+                  description: "No active streams found. Start a live stream on YouTube first.",
                   duration: 5000
                 });
               } else {
@@ -114,10 +114,10 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
               }
             } catch (error) {
               console.error("Error checking for broadcasts:", error);
-              // Don't enable demo mode automatically
+              // Handle error
               toast({
                 title: "YouTube Error",
-                description: "Error checking for live streams. Please try again or manually enable demo mode if needed.",
+                description: "Error checking for live streams. Please try again.",
                 variant: "destructive",
                 duration: 5000
               });
@@ -257,11 +257,11 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
           }
           return true;
         } else {
-          // No active broadcasts found - don't auto-enable demo mode
+          // No active broadcasts found
           if (!silent) {
             toast({
               title: "No Active YouTube Streams",
-              description: "No active live streams found. You can manually enable demo mode for testing if needed.",
+              description: "No active live streams found. Start a live stream on YouTube first.",
               duration: 5000
             });
           }
@@ -292,7 +292,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
     } catch (error) {
       console.error("Error checking for live broadcasts:", error);
-      // Don't auto-enable demo mode as fallback
+      // Don't show toast for network errors
       return false;
     }
   };
@@ -312,20 +312,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     setIsTwitchStreamConnected(hasTwitchConnection);
     setIsYoutubeStreamConnected(hasYoutubeConnection);
   }, [connections]);
-  
-  // Add toast notifications with instructions in the component
-  useEffect(() => {
-    if (isYoutubeAuthed && isDemoMode()) {
-      // Only show this on the first render when both conditions are met
-      setTimeout(() => {
-        toast({
-          title: "YouTube Demo Mode Active",
-          description: "You're connected with demo mode. Start a live stream on YouTube to use real chat.",
-          duration: 5000
-        });
-      }, 1000);
-    }
-  }, [isYoutubeAuthed, toast]);
   
   // Add effect to check authentication on component mount and periodically (less aggressive)
   useEffect(() => {
