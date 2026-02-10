@@ -64,46 +64,25 @@
             console.log("Token found, sending to main process for service:", service);
             fetch('/auth-complete?token=' + encodeURIComponent(token) + '&service=' + service, { method: 'GET' })
                 .then(response => {
-                    let countdown = 3;
-                    const updateCountdown = () => {
-                        document.body.innerHTML = `
-                            <div class="container">
-                                <h2>Authorization Successful</h2>
-                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                </svg>
-                                <p style="color: #22c55e; font-size: 20px;">You have been successfully authenticated!</p>
-                                <p>You can now close this window and return to application.</p>
-                                <p style="color: #22c55e; font-weight: bold; font-size: 18px; margin-top: 20px;">
-                                    This window will close in ${countdown} second${countdown !== 1 ? 's' : ''}...
-                                </p>
-                            </div>
-                        `;
-                        document.body.style.backgroundColor = '#f0fff4';
-                    };
+                    document.body.innerHTML = `
+                        <div class="container">
+                            <h2>Authorization Successful</h2>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                            <p style="color: #22c55e; font-size: 20px;">You have been successfully authenticated!</p>
+                            <p style="font-size: 16px; margin-top: 10px;">You can close this window and return to StreamTTS.</p>
+                        </div>
+                    `;
+                    document.body.style.backgroundColor = '#f0fff4';
                     
-                    updateCountdown();
-                    
-                    const countdownInterval = setInterval(() => {
-                        countdown--;
-                        if (countdown <= 0) {
-                            clearInterval(countdownInterval);
-                            updateCountdown();
-                            try {
-                                window.close();
-                                setTimeout(() => {
-                                    if (!window.closed) {
-                                        console.log('Window did not close, trying again...');
-                                        window.location.href = 'http://localhost:8080';
-                                    }
-                                }, 500);
-                            } catch (e) {
-                                console.log('Cannot close window directly, redirecting...');
-                                window.location.href = 'http://localhost:8080';
-                            }
-                        } else {
-                            updateCountdown();
+                    // Attempt to close the window (works in some browsers)
+                    setTimeout(() => {
+                        try {
+                            window.close();
+                        } catch (e) {
+                            // Window cannot be closed programmatically, user will close manually
                         }
                     }, 1000);
                 })
@@ -118,7 +97,7 @@
                                 <line x1="9" y1="9" x2="15" y2="15"></line>
                             </svg>
                             <p style="color: #ef4444; font-size: 20px;">Authentication error occurred</p>
-                            <p>Please close this window and try again.</p>
+                            <p>Please close this window and try again in the app.</p>
                         </div>
                     `;
                     document.body.style.backgroundColor = '#fff5f5';
