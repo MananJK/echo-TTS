@@ -26,7 +26,6 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     const checkToken = () => {
       const hasToken = hasTwitchOAuthToken();
       if (hasToken !== isAuthorized) {
-        console.log("Twitch OAuth token state changed:", hasToken);
         setIsAuthorized(hasToken);
         onAuthChange(hasToken);
       }
@@ -62,9 +61,7 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
 
     // Handle Electron/Tauri IPC events
     const handleAuthCallback = (event: MessageEvent) => {
-      console.log("Received message event:", event.data);
       if (event.data && event.data.type === 'twitch-oauth-callback' && event.data.token) {
-        console.log("Twitch token received in handleAuthCallback");
         saveTwitchOAuthToken(event.data.token);
         setIsAuthorized(true);
         onAuthChange(true);
@@ -91,10 +88,8 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     
     // Setup listener for Tauri auth callbacks
     const unlistenAuth = onAuthCallback((data) => {
-      console.log("Auth callback received from Tauri:", data);
       if (data.type === 'twitch-oauth-callback') {
         if (data.token) {
-          console.log("Processing Twitch token from Tauri callback");
           saveTwitchOAuthToken(data.token);
           setIsAuthorized(true);
           onAuthChange(true);
@@ -135,9 +130,6 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     const finalRedirectUri = typeof window.electron !== 'undefined' ? REDIRECT_URI : WEB_REDIRECT_URI;
     authUrl.searchParams.append('redirect_uri', finalRedirectUri);
     
-    console.log('Twitch Auth: Using authentication flow:', typeof window.electron !== 'undefined' ? 'Electron' : 'Web');
-    console.log('Twitch Auth: Redirect URI:', finalRedirectUri);
-    console.log('Twitch Auth: Client ID:', TWITCH_CLIENT_ID);
     
     authUrl.searchParams.append('response_type', 'token');
     authUrl.searchParams.append('scope', scopes.join(' '));
@@ -145,12 +137,10 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     authUrl.searchParams.append('state', 'twitch_auth_' + Date.now()); // Add state for identification
     
     const fullAuthUrl = authUrl.toString();
-    console.log('Twitch Auth: Full OAuth URL:', fullAuthUrl);
     
     // Check if we're running in Electron/Tauri
     if (isTauriAvailable()) {
       try {
-        console.log("Twitch Auth: Opening OAuth URL via Tauri");
         await openExternalAuth(fullAuthUrl, finalRedirectUri);
       } catch (error) {
         console.error("Twitch Auth: Error opening auth URL:", error);
@@ -164,13 +154,11 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
       }
     } else {
       // Fallback to web flow
-      console.log("Twitch Auth: Using web flow");
       window.location.href = fullAuthUrl;
     }
   };
 
   const handleDisconnect = () => {
-    console.log("TwitchOAuthButton: Disconnecting from Twitch");
     clearTwitchOAuthToken();
     setIsAuthorized(false);
     onAuthChange(false);

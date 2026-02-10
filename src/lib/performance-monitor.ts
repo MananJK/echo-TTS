@@ -22,7 +22,6 @@ export class PerformanceMonitor {
     this.trackInitialLoad();
     this.monitorMemoryUsage();
     
-    console.log('🚀 Performance monitoring started');
   }
 
   stop(): void {
@@ -30,7 +29,6 @@ export class PerformanceMonitor {
     this.observers.forEach(observer => observer.disconnect());
     this.observers = [];
     
-    console.log('🛑 Performance monitoring stopped');
   }
 
   private setupPerformanceObservers(): void {
@@ -201,7 +199,6 @@ export function initializePerformanceMonitoring(): void {
   // Log performance summary every 30 seconds in development
   if (process.env.NODE_ENV === 'development') {
     setInterval(() => {
-      console.log('Performance Summary:', monitor.getPerformanceSummary());
     }, 30000);
   }
 }

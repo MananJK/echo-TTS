@@ -3,12 +3,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
-import { Mic, Volume2, MessageSquare, Settings, Radio, Heart, Info, LogIn } from 'lucide-react';
+import { Mic, Volume2, MessageSquare, Settings, Radio, Heart, Info, LogIn, ChevronDown, ChevronRight } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Link } from 'react-router-dom';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 // Lazy load components with prefetch to avoid UI jank
 const MessageInput = lazy(() => import('@/components/MessageInput'));
@@ -17,6 +17,7 @@ const VolumeControl = lazy(() => import('@/components/VolumeControl'));
 const ApiKeyInput = lazy(() => import('@/components/ApiKeyInput'));
 const ChatConnections = lazy(() => import('@/components/ChatConnections').then(module => ({ default: module.default })));
 const ConnectionStatusPanel = lazy(() => import('@/components/ConnectionStatusPanel'));
+const AlertSettings = lazy(() => import('@/components/AlertSettings'));
 
 import { Message } from '@/types/message';
 import { ChatConnection } from '@/types/chatSource';
@@ -34,11 +35,10 @@ const Index = () => {
   const [ttsProvider, setTtsProvider] = useState<TTSProvider>('browser');
   const [selectedVoice, setSelectedVoice] = useState<string>('');
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isHowToUseOpen, setIsHowToUseOpen] = useState<boolean>(false);
   const { toast } = useToast();
   const [isYoutubeAuthed, setIsYoutubeAuthed] = useState<boolean>(hasYoutubeOAuthToken());
-  // Add a state to keep track of YouTube connection objects
   const [youtubeConnections, setYoutubeConnections] = useState<Record<string, { disconnect: () => void }>>({});
-  // Add state to track if TTS is initialized
   const [ttsInitialized, setTtsInitialized] = useState<boolean>(false);
 
   // Load API key, volume, and TTS provider from localStorage
@@ -206,9 +206,7 @@ const Index = () => {
       await playMessageAudio(
         newMessage,
         apiKey,
-        () => {
-          console.log('Playback started for message:', newMessage.id);
-        },
+        () => {},
         () => {
           // Update message status to completed when done
           setMessages(currentMessages => 
@@ -309,23 +307,15 @@ const Index = () => {
             <CardContent className="pt-6 flex-1 flex flex-col">
               <Suspense fallback={<div className="p-4">Loading...</div>}>
                 <TabsContent value="chat" className="space-y-4 flex-1 flex flex-col">
-                  {/* Message History */}
                   <div className="flex-1 overflow-y-auto">
                     <MessageHistory messages={messages} />
                   </div>
                   
-                  {/* Volume Control */}
                   <div className="flex justify-center my-4">
                     <VolumeControl volume={volume} onVolumeChange={handleVolumeChange} />
                   </div>
                   
-                  {/* Message Input */}
                   <MessageInput onSendMessage={handleSendMessage} ttsProvider={ttsProvider} />
-                  
-                  {/* Footer inside the tab content */}
-                  <div className="pt-4 text-center text-sm text-muted-foreground border-t border-stream-accent/10 mt-4">
-                    Made with <Heart className="inline h-4 w-4 text-red-500 mx-1" /> - Nerve © 2025
-                  </div>
                 </TabsContent>
                 
                 <TabsContent value="connections" className="space-y-4 flex-1 flex flex-col">
@@ -335,31 +325,19 @@ const Index = () => {
                       onConnectionChange={setChatConnections}
                     />
                   </div>
-                  
-                  {/* Footer inside the tab content */}
-                  <div className="pt-4 text-center text-sm text-muted-foreground border-t border-stream-accent/10 mt-4">
-                    Made with <Heart className="inline h-4 w-4 text-red-500 mx-1" /> - Nerve © 2025
-                  </div>
                 </TabsContent>
                 
                 <TabsContent value="settings" className="flex-1 flex flex-col">
                   <div className="space-y-6 flex-1">
-                    {/* Security Notice */}
-                    <Alert className="bg-yellow-500/10 border-yellow-500/50">
-                      <Info className="h-4 w-4 text-yellow-500" />
-                      <AlertTitle>Personal Credentials</AlertTitle>
-                      <AlertDescription>
-                        Your API keys and OAuth tokens are stored locally on your device only and are never sent to our servers.
-                        For Twitch and YouTube, we use OAuth authentication which allows you to connect without entering API keys.
-                      </AlertDescription>
-                    </Alert>
+                    <Suspense fallback={<div className="h-48 bg-card/50 rounded-lg animate-pulse"></div>}>
+                      <AlertSettings />
+                    </Suspense>
                     
-                    {/* TTS Provider Selection */}
                     <div className="flex items-center justify-between rounded-lg border p-4">
                       <div className="space-y-0.5">
                         <h4 className="font-medium">TTS Provider</h4>
                         <p className="text-sm text-muted-foreground">
-                          Choose between browser's built-in TTS (unlimited) or ElevenLabs (premium quality)
+                          Browser TTS (free) or ElevenLabs (premium)
                         </p>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -373,13 +351,9 @@ const Index = () => {
                       </div>
                     </div>
                     
-                    {/* Voice Selection for Browser TTS */}
                     {ttsProvider === 'browser' && (
                       <div className="rounded-lg border p-4">
-                        <h4 className="font-medium mb-2">Browser Voice Selection</h4>
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Select a voice from your operating system (Russian voices recommended)
-                        </p>
+                        <h4 className="font-medium mb-2">Voice Selection</h4>
                         <Select value={selectedVoice} onValueChange={handleVoiceChange}>
                           <SelectTrigger>
                             <SelectValue placeholder="Select a voice" />
@@ -399,7 +373,6 @@ const Index = () => {
                       </div>
                     )}
                     
-                    {/* ElevenLabs API Key Input */}
                     {ttsProvider === 'elevenlabs' && (
                       <div className="grid place-items-center">
                         <ApiKeyInput 
@@ -409,44 +382,52 @@ const Index = () => {
                       </div>
                     )}
                     
-                    <Card className="bg-muted/20 border-stream-accent/20">
-                      <CardHeader>
-                        <CardTitle className="text-lg flex items-center gap-2">
-                          <Mic size={18} className="text-stream-accent" />
-                          How to Use
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3 text-sm">
-                        <p>
-                          <span className="text-stream-accent font-semibold">1.</span> {ttsProvider === 'elevenlabs' ? 'Set your ElevenLabs API key above' : 'Select a voice from the dropdown above'}
-                        </p>
-                        <p>
-                          <span className="text-stream-accent font-semibold">2.</span> Go to the Connections tab and connect to Twitch or YouTube using OAuth
-                        </p>
-                        <p>
-                          <span className="text-stream-accent font-semibold">3.</span> For Twitch, click "Connect with Twitch" and authorize the application
-                        </p>
-                        <p>
-                          <span className="text-stream-accent font-semibold">4.</span> Russian messages or messages starting with <code className="bg-muted px-1 rounded text-stream-accent">!г</code> will be auto-detected
-                        </p>
-                        <p>
-                          <span className="text-stream-accent font-semibold">5.</span> You can also test by manually typing in the Chat tab
-                        </p>
-                        <p className="text-muted-foreground italic mt-4">
-                          Example: <code className="bg-muted px-1 rounded text-stream-accent">!г Привет, как дела?</code>
-                        </p>
-                      </CardContent>
-                    </Card>
-                  </div>
-                  
-                  {/* Footer inside the tab content */}
-                  <div className="pt-4 text-center text-sm text-muted-foreground border-t border-stream-accent/10 mt-4">
-                    Made with <Heart className="inline h-4 w-4 text-red-500 mx-1" /> - Nerve © 2025
+                    <Collapsible open={isHowToUseOpen} onOpenChange={setIsHowToUseOpen}>
+                      <Card className="bg-muted/20 border-stream-accent/20">
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer hover:bg-muted/30 transition-colors">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              {isHowToUseOpen ? <ChevronDown size={18} className="text-stream-accent" /> : <ChevronRight size={18} className="text-stream-accent" />}
+                              <Mic size={18} className="text-stream-accent" />
+                              How to Use
+                            </CardTitle>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="space-y-3 text-sm">
+                            <p>
+                              <span className="text-stream-accent font-semibold">1.</span> {ttsProvider === 'elevenlabs' ? 'Set your ElevenLabs API key above' : 'Select a voice from the dropdown above'}
+                            </p>
+                            <p>
+                              <span className="text-stream-accent font-semibold">2.</span> Go to Connections and connect to Twitch or YouTube
+                            </p>
+                            <p>
+                              <span className="text-stream-accent font-semibold">3.</span> Messages starting with <code className="bg-muted px-1 rounded text-stream-accent">!г</code> will be read aloud
+                            </p>
+                            <p className="text-muted-foreground italic mt-4">
+                              Example: <code className="bg-muted px-1 rounded text-stream-accent">!г Привет!</code>
+                            </p>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                    
+                    <Alert className="bg-yellow-500/10 border-yellow-500/50">
+                      <Info className="h-4 w-4 text-yellow-500" />
+                      <AlertTitle>Privacy</AlertTitle>
+                      <AlertDescription>
+                        Your API keys and tokens are stored locally and never sent to external servers.
+                      </AlertDescription>
+                    </Alert>
                   </div>
                 </TabsContent>
               </Suspense>
             </CardContent>
           </Tabs>
+          
+          <div className="p-4 text-center text-xs text-muted-foreground border-t border-stream-accent/10">
+            Made with <Heart className="inline h-3 w-3 text-red-500 mx-1" /> Nerve © 2025
+          </div>
         </Card>
       </div>
     </div>

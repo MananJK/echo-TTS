@@ -39,3 +39,4 @@ electron-build-fresh/
 *.njsproj
 *.sln
 *.sw?
+NUL
