@@ -28,7 +28,6 @@ root.render(
 // Log initial render time
 requestIdleCallback(() => {
   const loadTime = performance.now() - startTime;
-  console.log(`🚀 App rendered in ${loadTime.toFixed(2)}ms`);
   
   // Force garbage collection if available (development only)
   if (process.env.NODE_ENV === 'development' && 'gc' in window) {

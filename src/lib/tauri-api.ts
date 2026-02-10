@@ -25,8 +25,6 @@ export interface AlertData {
 }
 
 export const openExternalAuth = async (url: string, redirectUrl: string): Promise<void> => {
-  console.log(`TauriAPI: Requesting auth for URL: ${url}`);
-  console.log(`TauriAPI: Redirect URL: ${redirectUrl}`);
   
   if (!isTauriAvailable()) {
     throw new Error('Tauri is not available');
@@ -34,7 +32,6 @@ export const openExternalAuth = async (url: string, redirectUrl: string): Promis
   
   try {
     await open(url);
-    console.log('TauriAPI: OAuth URL opened successfully');
   } catch (error) {
     console.error('TauriAPI: Failed to open URL:', error);
     throw error;
@@ -42,7 +39,6 @@ export const openExternalAuth = async (url: string, redirectUrl: string): Promis
 };
 
 export const onAuthCallback = (callback: (data: AuthCallbackData) => void): (() => void) => {
-  console.log('TauriAPI: Setting up auth callback listener');
   
   if (!isTauriAvailable()) {
     console.warn('TauriAPI: Tauri not available, returning no-op callback');
@@ -50,8 +46,6 @@ export const onAuthCallback = (callback: (data: AuthCallbackData) => void): (() 
   }
   
   const unlisten = listen<AuthCallbackData>('auth-callback', (event) => {
-    console.log('TauriAPI: Auth callback received for:', event.payload.type);
-    console.log('TauriAPI: Token present:', !!event.payload.token);
     
     const data = event.payload;
     
@@ -66,7 +60,6 @@ export const onAuthCallback = (callback: (data: AuthCallbackData) => void): (() 
 };
 
 export const onAlert = (callback: (data: AlertData) => void): (() => void) => {
-  console.log('TauriAPI: Setting up alert listener');
   
   if (!isTauriAvailable()) {
     console.warn('TauriAPI: Tauri not available, returning no-op alert callback');
@@ -74,7 +67,6 @@ export const onAlert = (callback: (data: AlertData) => void): (() => void) => {
   }
   
   const unlisten = listen<AlertData>('integration-alert', (event) => {
-    console.log('TauriAPI: Alert received:', event.payload);
     
     const data = event.payload;
     

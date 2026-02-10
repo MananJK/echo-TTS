@@ -67,11 +67,9 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     };
     
     const handleAuthCallback = async (event: MessageEvent) => {
-      console.log("ChatConnections: Received message event:", event.data);
       
       // Handle Twitch auth
       if (event.data && event.data.type === 'twitch-oauth-callback' && event.data.token) {
-        console.log("ChatConnections: Twitch token received");
         saveTwitchOAuthToken(event.data.token);
         setIsTwitchAuthed(true);
         
@@ -83,7 +81,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       
       // Handle YouTube auth
       if (event.data && event.data.type === 'youtube-oauth-callback' && event.data.token) {
-        console.log("ChatConnections: YouTube token received:", event.data.token.substring(0, 10) + "...");
         
         try {
           // Save token and check if it's valid
@@ -100,7 +97,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
             try {
               const broadcasts = await fetchYouTubeLiveBroadcasts();
               if (!broadcasts || broadcasts.length === 0) {
-                console.log("ChatConnections: No active broadcasts found");
                 toast({
                   title: "No Active YouTube Streams",
                   description: "No active streams found. Start a live stream on YouTube first.",
@@ -147,9 +143,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     
     // Auto-setup listener for Electron if available
     if (typeof window.electron !== 'undefined') {
-      console.log("ChatConnections: Setting up Electron auth callback listener");
       window.electron.onAuthCallback((data) => {
-        console.log("ChatConnections: Auth callback received in renderer:", data);
         // Use void to properly handle the promise from the async function
         void handleAuthCallback(new MessageEvent('message', { data }));
       });
@@ -163,7 +157,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   // Debug function to validate the YouTube token (improved error handling)
   const validateYouTubeToken = async (token: string, silent = false) => {
     try {
-      console.log("Validating YouTube token...");
       const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -172,7 +165,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       
       if (response.ok) {
         const data = await response.json();
-        console.log("YouTube token is valid. Channel data:", data);
         
         // Check if user has any live broadcasts (only if not silent)
         if (!silent) {
@@ -185,7 +177,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         
         // Only clear token and update UI state for 401 errors (expired/invalid tokens)
         if (response.status === 401) {
-          console.log("Token expired (401), clearing auth state");
           setIsYoutubeAuthed(false);
           localStorage.removeItem('youtube_oauth_token');
           
@@ -199,7 +190,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         } else if (response.status === 403) {
           // For 403 errors, don't clear the token but show a warning
           if (!silent) {
-            console.log("Insufficient permissions (403), but keeping token");
             toast({
               title: "YouTube Permission Warning",
               description: "Some YouTube features may not work due to insufficient permissions.",
@@ -234,7 +224,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   // Debug function to check for live broadcasts
   const checkForLiveBroadcasts = async (token: string, silent = false) => {
     try {
-      console.log("Checking for YouTube live broadcasts...");
       const response = await fetch(
         'https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet&broadcastStatus=active',
         {
@@ -246,7 +235,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       
       if (response.ok) {
         const data = await response.json();
-        console.log("Live broadcasts response:", data);
         
         if (data.items && data.items.length > 0) {
           if (!silent) {
@@ -307,7 +295,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       conn => conn.type === 'youtube' && conn.isConnected
     );
     
-    console.log(`Connection status update: Twitch=${hasTwitchConnection}, YouTube=${hasYoutubeConnection}, total connections=${connections.length}`);
     
     setIsTwitchStreamConnected(hasTwitchConnection);
     setIsYoutubeStreamConnected(hasYoutubeConnection);
@@ -351,7 +338,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
     // Prevent multiple rapid connection attempts
     if (isConnectingTwitch) {
-      console.log("Twitch connection already in progress, ignoring request");
       return;
     }
 
@@ -366,7 +352,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         const timeSinceLastAttempt = Date.now() - lastAttempt;
         
         if (timeSinceLastAttempt < 5000) {
-          console.log(`Debouncing Twitch connection attempt for ${username}`);
           toast({
             title: "Please Wait",
             description: "Please wait a moment before reconnecting",
@@ -405,7 +390,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
               // Update connection status with proper state management
               // Use the ref to get current connections to avoid stale closure
               const currentConnections = connectionsRef.current;
-              console.log(`Twitch connection callback: connected=${connected}, error=${error}, currentConnections length=${currentConnections.length}`);
               
               const updatedList = currentConnections.map(conn => 
                 conn.id === connectionId 
@@ -416,7 +400,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
               // Only update if we found the connection
               const connectionExists = currentConnections.some(conn => conn.id === connectionId);
               if (connectionExists) {
-                console.log(`Updating connection ${connectionId} status: connected=${connected}`);
                 onConnectionChange(updatedList);
               } else {
                 console.warn(`Connection ${connectionId} not found in current connections`);
@@ -474,13 +457,11 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       return;
     }
     
-    console.log("Disconnecting from Twitch channels:", twitchConnections.map(c => c.channelName));
     
     try {
       // Disconnect each connection with proper error handling
       const disconnectPromises = twitchConnections.map(async (conn) => {
         try {
-          console.log(`Disconnecting from Twitch channel: ${conn.channelName}`);
           await disconnectFromTwitchChat(conn.channelName);
           
           // Remove from UI immediately after successful disconnect
@@ -546,22 +527,17 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
     // Prevent multiple simultaneous connection attempts
     if (isConnectingYoutube) {
-      console.log("YouTube connection already in progress, ignoring request");
       return;
     }
 
     setIsConnectingYoutube(true);
-    console.log("Starting YouTube connection process...");
     
     try {
-      console.log("Attempting to connect to YouTube live stream...");
       
       // Get active YouTube broadcasts with comprehensive error handling
       let broadcasts: any[] = [];
       try {
-        console.log("Fetching YouTube broadcasts...");
         broadcasts = await fetchYouTubeLiveBroadcasts();
-        console.log("Retrieved broadcasts:", broadcasts);
       } catch (broadcastFetchError) {
         console.error("Failed to fetch YouTube broadcasts:", broadcastFetchError);
         
@@ -607,7 +583,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         const broadcastId = broadcasts[0].id;
         const broadcastTitle = broadcasts[0].snippet?.title || 'Unknown';
         
-        console.log(`Connecting to broadcast: ${broadcastId} (${broadcastTitle})`);
         
         // Check if we're already connected to this broadcast
         const existingConnection = connections.find(
@@ -629,11 +604,9 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
           // Connect to YouTube chat with timeout protection
           try {
-            console.log("Establishing YouTube chat connection...");
             const { disconnect } = await connectToYouTubeLiveChat(
               broadcastId,
               (message) => {
-                console.log("Received YouTube chat message:", message);
               },
               (error) => {
                 console.error("YouTube chat connection error:", error);
@@ -656,7 +629,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
               }
             );
 
-            console.log("YouTube chat connection established successfully");
             
             // Store the disconnect function for later use
             youtubeDisconnectFns.current[connectionId] = disconnect;
@@ -714,7 +686,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
           });
         }
       } else {
-        console.log("No active YouTube broadcasts found");
         
         toast({
           title: "No Active Streams",
@@ -747,7 +718,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         duration: 8000
       });
     } finally {
-      console.log("YouTube connection process completed, resetting state");
       setIsConnectingYoutube(false);
     }
   };
@@ -878,7 +848,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     authUrl.searchParams.append('state', 'twitch_auth_' + Date.now());
     
     const fullAuthUrl = authUrl.toString();
-    console.log('ChatConnections: Twitch Auth URL:', fullAuthUrl);
     
     toast({
       title: "Twitch Authentication",
@@ -888,7 +857,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     // Check if we're running in Electron
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        console.log('Using Electron OAuth flow');
         (window as any).electron.openExternalAuth(fullAuthUrl, REDIRECT_URI);
       } catch (error) {
         console.error("Error opening Twitch auth URL:", error);
@@ -900,7 +868,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
     } else {
       // Fallback: Traditional web flow - open in new window
-      console.log('Using web OAuth flow');
       const authWindow = window.open(
         fullAuthUrl,
         'twitch_auth',
@@ -951,7 +918,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     authUrl.searchParams.append('state', 'youtube_auth_' + Date.now());
     
     const fullAuthUrl = authUrl.toString();
-    console.log('ChatConnections: YouTube Auth URL:', fullAuthUrl);
     
     toast({
       title: "YouTube Authentication",
@@ -961,7 +927,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     // Check if we're running in Electron
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        console.log('Using Electron OAuth flow for YouTube');
         (window as any).electron.openExternalAuth(fullAuthUrl, REDIRECT_URI);
       } catch (error) {
         console.error("Error opening YouTube auth URL:", error);
@@ -973,7 +938,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
     } else {
       // Fallback: Traditional web flow - open in new window
-      console.log('Using web OAuth flow for YouTube');
       const authWindow = window.open(
         fullAuthUrl,
         'youtube_auth',
@@ -999,11 +963,9 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
   // Diagnostic function to help troubleshoot YouTube issues
   const diagnoseYouTubeIssues = async () => {
-    console.log("=== YouTube Connection Diagnostics ===");
     
     const token = localStorage.getItem('youtube_oauth_token');
     if (!token) {
-      console.log("❌ No YouTube token found");
       toast({
         title: "YouTube Diagnostic",
         description: "No YouTube authentication token found. Please login first.",
@@ -1012,35 +974,26 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       return;
     }
     
-    console.log("✅ YouTube token exists:", token.substring(0, 10) + "...");
     
     try {
       // Test 1: Basic API access
-      console.log("Testing basic YouTube API access...");
       const channelResponse = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (channelResponse.ok) {
         const channelData = await channelResponse.json();
-        console.log("✅ Basic API access working");
-        console.log("Channel:", channelData.items?.[0]?.snippet?.title);
         
         toast({
           title: "✅ Basic YouTube API",
           description: `Connected to channel: ${channelData.items?.[0]?.snippet?.title || 'Unknown'}`,
         });
       } else {
-        console.log("❌ Basic API access failed:", channelResponse.status);
         const errorText = await channelResponse.text();
-        console.log("Error details:", errorText);
         
         // Provide specific guidance based on error
         if (channelResponse.status === 403) {
           const errorMsg = "403 Forbidden - Likely permissions or quota issue";
-          console.log("🔧 SOLUTION: This is likely a permissions or live streaming issue");
-          console.log("Try: 1. Enable live streaming in YouTube Studio");
-          console.log("     2. Use the 'Reset YouTube Auth' button below");
           
           toast({
             title: "❌ YouTube API Error (403)",
@@ -1067,18 +1020,14 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
       
       // Test 2: Check live streaming capability
-      console.log("Checking live streaming capability...");
       try {
         const liveStreamCheck = await checkLiveStreamingEnabled();
         if (liveStreamCheck.enabled) {
-          console.log("✅ Live streaming is enabled");
           toast({
             title: "✅ Live Streaming Enabled",
             description: "Your channel can create live streams.",
           });
         } else {
-          console.log("❌ Live streaming not enabled:", liveStreamCheck.reason);
-          console.log("🔧 SOLUTION: Enable live streaming in YouTube Studio");
           toast({
             title: "❌ Live Streaming Disabled",
             description: "Enable live streaming in YouTube Studio → Settings → Channel → Features",
@@ -1087,7 +1036,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
           });
         }
       } catch (liveStreamError) {
-        console.log("⚠️ Could not check live streaming status:", liveStreamError);
         toast({
           title: "⚠️ Live Streaming Check Failed",
           description: "Could not verify live streaming status. Check YouTube Studio manually.",
@@ -1096,34 +1044,27 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
       
       // Test 3: Live broadcasts access
-      console.log("Testing live broadcasts access...");
       const broadcastResponse = await fetch('https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet&broadcastStatus=active', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
       if (broadcastResponse.ok) {
         const broadcastData = await broadcastResponse.json();
-        console.log("✅ Live broadcasts access working");
-        console.log("Active broadcasts:", broadcastData.items?.length || 0);
         
         if (broadcastData.items?.length === 0) {
-          console.log("ℹ️ No active broadcasts found. Start a live stream to test chat connection.");
           toast({
             title: "ℹ️ No Active Streams",
             description: "Start a live stream on YouTube to test chat connection.",
             duration: 6000
           });
         } else {
-          console.log("Found broadcasts:", broadcastData.items.map((b: any) => b.snippet?.title));
           toast({
             title: "✅ Active Broadcasts Found",
             description: `Found ${broadcastData.items.length} active broadcast(s). Ready to connect!`,
           });
         }
       } else {
-        console.log("❌ Live broadcasts access failed:", broadcastResponse.status);
         const errorText = await broadcastResponse.text();
-        console.log("Error details:", errorText);
         
         toast({
           title: "❌ Broadcast Access Failed",
@@ -1133,7 +1074,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         });
       }
       
-      console.log("=== Diagnostic Complete ===");
       toast({
         title: "YouTube Diagnostic Complete",
         description: "Check the browser console (F12) for detailed results.",
@@ -1172,11 +1112,9 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     onConnectionChange(updatedConnections);
     
     try {
-      console.log(`Disconnecting from ${connection.type} channel: ${connection.channelName}`);
       
       if (connection.type === 'twitch') {
         await disconnectFromTwitchChat(connection.channelName);
-        console.log(`Successfully disconnected from Twitch channel: ${connection.channelName}`);
       } else if (connection.type === 'youtube') {
         // Call the stored disconnect function for this specific connection
         const disconnect = youtubeDisconnectFns.current[connection.id];
@@ -1184,7 +1122,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
           disconnect();
           // Remove the disconnect function from storage
           delete youtubeDisconnectFns.current[connection.id];
-          console.log(`Successfully disconnected from YouTube channel: ${connection.channelName}`);
         } else {
           console.warn(`No disconnect function found for YouTube connection: ${connection.id}`);
         }

@@ -13,10 +13,8 @@ const recentErrors: { [channelName: string]: { message: string, timestamp: numbe
 const TWITCH_TOKEN_KEY = 'twitchOAuthToken';
 
 export const saveTwitchOAuthToken = (token: string): void => {
-  console.log("TwitchService: Saving OAuth token to localStorage");
   try {
     localStorage.setItem(TWITCH_TOKEN_KEY, token);
-    console.log("TwitchService: Token saved successfully");
   } catch (error) {
     console.error("TwitchService: Error saving token:", error);
   }
@@ -25,7 +23,6 @@ export const saveTwitchOAuthToken = (token: string): void => {
 export const hasTwitchOAuthToken = (): boolean => {
   try {
     const token = localStorage.getItem(TWITCH_TOKEN_KEY);
-    console.log(`TwitchService: Token ${token ? 'exists' : 'does not exist'} in localStorage`);
     return !!token;
   } catch (error) {
     console.error("TwitchService: Error checking token:", error);
@@ -34,10 +31,8 @@ export const hasTwitchOAuthToken = (): boolean => {
 };
 
 export const clearTwitchOAuthToken = (): void => {
-  console.log("TwitchService: Clearing OAuth token from localStorage");
   try {
     localStorage.removeItem(TWITCH_TOKEN_KEY);
-    console.log("TwitchService: Token cleared successfully");
   } catch (error) {
     console.error("TwitchService: Error clearing token:", error);
   }
@@ -111,12 +106,10 @@ export const connectToTwitchChat = (
     });
 
     client.on('connected', () => {
-      console.log(`Connected to Twitch channel: ${channelName}`);
       onConnectionChanged(true);
     });
 
     client.on('disconnected', (reason) => {
-      console.log(`Disconnected from Twitch: ${reason}`);
       // Only report disconnection if we haven't recently reported it
       const shouldReport = shouldReportError(channelName, `disconnect:${reason}`);
       if (shouldReport) {
@@ -144,12 +137,10 @@ export const connectToTwitchChat = (
 
     // Handle reconnection events
     client.on('reconnect', () => {
-      console.log(`Twitch client reconnecting to ${channelName}...`);
     });
 
     // Connect to Twitch with better error handling
     client.connect().then(() => {
-      console.log(`Successfully initiated connection to Twitch channel: ${channelName}`);
       // Store the client for later reference only after successful connection initiation
       twitchClients[channelName] = client;
     }).catch(error => {
@@ -178,7 +169,6 @@ export const disconnectFromTwitchChat = (channelName?: string): Promise<void> =>
   return new Promise((resolve) => {
     try {
       if (channelName && twitchClients[channelName]) {
-        console.log(`Attempting to disconnect from Twitch channel: ${channelName}`);
         
         const client = twitchClients[channelName];
         
@@ -193,7 +183,6 @@ export const disconnectFromTwitchChat = (channelName?: string): Promise<void> =>
         const onDisconnect = () => {
           clearTimeout(timeout);
           delete twitchClients[channelName];
-          console.log(`Successfully disconnected from Twitch channel: ${channelName}`);
           resolve();
         };
         
@@ -229,11 +218,9 @@ export const disconnectFromTwitchChat = (channelName?: string): Promise<void> =>
         
       } else if (!channelName) {
         // Disconnect all clients if no specific channel is provided
-        console.log('Attempting to disconnect from all Twitch channels');
         const channelNames = Object.keys(twitchClients);
         
         if (channelNames.length === 0) {
-          console.log('No Twitch channels to disconnect from');
           resolve();
           return;
         }
@@ -246,12 +233,10 @@ export const disconnectFromTwitchChat = (channelName?: string): Promise<void> =>
         });
         
         Promise.allSettled(disconnectPromises).then(() => {
-          console.log('Finished disconnecting from all Twitch channels');
           resolve();
         });
         
       } else {
-        console.log(`No active connection found for channel: ${channelName || 'undefined'}`);
         resolve();
       }
     } catch (error) {
@@ -277,7 +262,6 @@ export const getTwitchUsername = async (): Promise<string | null> => {
   try {
     const token = localStorage.getItem(TWITCH_TOKEN_KEY);
     if (!token) {
-      console.log("TwitchService: No token available to get username");
       return null;
     }
     
@@ -297,7 +281,6 @@ export const getTwitchUsername = async (): Promise<string | null> => {
     const data = await response.json();
     if (data && data.data && data.data.length > 0) {
       const username = data.data[0].login;
-      console.log(`TwitchService: Got username: ${username}`);
       return username;
     }
     

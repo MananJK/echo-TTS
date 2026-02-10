@@ -30,7 +30,6 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
     const checkToken = () => {
       const hasToken = hasYoutubeOAuthToken();
       if (hasToken !== isAuthorized) {
-        console.log("YouTube OAuth token state changed:", hasToken);
         setIsAuthorized(hasToken);
         onAuthChange(hasToken);
       }
@@ -87,10 +86,8 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
       
       const handleAuthCallback = (event: MessageEvent) => {
         if (!mounted) return;
-        console.log("Received message event for YouTube:", event.data);
         if (event.data && event.data.type === 'youtube-oauth-callback') {
           if (event.data.token) {
-            console.log("YouTube token received in handleAuthCallback");
             saveYoutubeOAuthToken(event.data.token);
             setIsAuthorized(true);
             onAuthChange(true);
@@ -121,10 +118,8 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
       try {
         unlistenAuth = onAuthCallback((data) => {
           if (!mounted) return;
-          console.log("Auth callback received from Tauri for YouTube:", data);
           if (data.type === 'youtube-oauth-callback') {
             if (data.token) {
-              console.log("Processing YouTube token from Tauri callback");
               saveYoutubeOAuthToken(data.token);
               setIsAuthorized(true);
               onAuthChange(true);
@@ -189,8 +184,6 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
     const finalRedirectUri = typeof window.electron !== 'undefined' ? REDIRECT_URI : WEB_REDIRECT_URI;
     authUrl.searchParams.append('redirect_uri', finalRedirectUri);
     
-    console.log('Using authentication flow:', typeof window.electron !== 'undefined' ? 'Electron' : 'Web');
-    console.log('Redirect URI:', finalRedirectUri);
     
     authUrl.searchParams.append('response_type', 'token');
     authUrl.searchParams.append('scope', scopes.join(' '));
@@ -202,11 +195,9 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
     authUrl.searchParams.append('include_granted_scopes', 'true');
     authUrl.searchParams.append('state', 'youtube_auth_' + Date.now());
     
-    console.log('YouTube OAuth URL:', authUrl.toString());
     
     // Check if we're running in Electron/Tauri
     if (isTauriAvailable()) {
-      console.log("YouTube Auth: Opening OAuth URL via Tauri");
       try {
         await openExternalAuth(authUrl.toString(), REDIRECT_URI);
       } catch (error) {
@@ -222,7 +213,6 @@ const YouTubeOAuthButton: React.FC<YouTubeOAuthButtonProps> = ({ onAuthChange })
       }
     } else {
       // Fallback to web flow
-      console.log("YouTube Auth: Using web flow");
       window.location.href = authUrl.toString();
     }
   };

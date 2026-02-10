@@ -30,7 +30,6 @@ export class AlertService {
 
   public initialize(): void {
     this.alertCleanup = onAlert((alert: AlertData) => {
-      console.log('AlertService: Received alert from Tauri', alert);
       this.handleAlert(alert);
     });
 
@@ -42,7 +41,6 @@ export class AlertService {
     
     const data = event.data;
     if (data && data.platform && data.alert_type && data.user_name) {
-      console.log('AlertService: Received alert from postMessage', data);
       this.handleAlert(data as AlertData);
     }
   };
@@ -147,7 +145,6 @@ export class AlertService {
 
     // Also send to custom TTS system if available
     if (window.speechSynthesis) {
-      console.log('AlertService: Speaking alert message:', alert.message);
     }
 
     // Notify listeners
