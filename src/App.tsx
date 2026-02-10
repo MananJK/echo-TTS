@@ -4,7 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
-import { hasYoutubeOAuthToken, validateToken as validateYoutubeToken } from "./services/youtubeService";
+import { hasYoutubeOAuthToken } from "./services/youtubeService";
 import { hasTwitchOAuthToken } from "./services/twitchService";
 import Loading from "./components/Loading";
 import { AlertService } from "./services/alertsService";
@@ -32,52 +32,10 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [isChecking, setIsChecking] = useState<boolean>(true);
   
   useEffect(() => {
-    // Check auth state
     const twitchAuth = hasTwitchOAuthToken();
     const youtubeAuth = hasYoutubeOAuthToken();
-    
-    // Simplified auth validation - just check if tokens exist
-    const validateAuth = async () => {
-      try {
-        const startTime = performance.now();
-        console.log('Validating authentication...');
-        
-        // Validate YouTube token if present
-        let validYoutubeAuth = youtubeAuth;
-        if (validYoutubeAuth) {
-          const token = localStorage.getItem('youtube_oauth_token');
-          if (token) {
-            try {
-              const isValid = await validateYoutubeToken(token);
-              if (!isValid) {
-                console.warn('YouTube token validation failed on startup');
-                localStorage.removeItem('youtube_oauth_token');
-                validYoutubeAuth = false;
-              } else {
-                console.log('YouTube token validated successfully');
-              }
-            } catch (err) {
-              console.error('Error validating YouTube token:', err);
-              localStorage.removeItem('youtube_oauth_token');
-              validYoutubeAuth = false;
-            }
-          }
-        }
-        
-        const authed = twitchAuth || validYoutubeAuth;
-        setIsAuthed(authed);
-        setIsChecking(false);
-        
-        const endTime = performance.now();
-        console.log(`Authentication validated in ${(endTime - startTime).toFixed(2)}ms. Authenticated: ${authed}`);
-      } catch (error) {
-        console.error('Unexpected error during auth validation:', error);
-        setIsAuthed(twitchAuth || youtubeAuth);
-        setIsChecking(false);
-      }
-    };
-    
-    validateAuth();
+    setIsAuthed(twitchAuth || youtubeAuth);
+    setIsChecking(false);
   }, []);
   
   // Show loading indicator instead of blank screen
@@ -95,10 +53,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const App = () => {
   useEffect(() => {
     try {
-      console.log('Initializing alert service...');
       const alertService = AlertService.getInstance();
       alertService.initialize();
-      console.log('Alert service initialized successfully');
       return () => alertService.cleanup();
     } catch (error) {
       console.error('Failed to initialize alert service:', error);
