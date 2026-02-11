@@ -467,8 +467,8 @@ sudo dnf install obs-studio pipewire
 - **[Tauri Documentation](https://tauri.app/)** - Desktop app framework documentation
 
 ### Community Support
-- **[GitHub Issues](https://github.com/your-username/stream-tts/issues)** - Report bugs
-- **[GitHub Discussions](https://github.com/your-username/stream-tts/discussions)** - Ask questions
+- **[GitHub Issues](https://github.com/MananJK/StreamTTS/issues)** - Report bugs
+- **[GitHub Discussions](https://github.com/MananJK/StreamTTS/discussions)** - Ask questions
 - **[Discord](#)** - Community support (if available)
 
 ---

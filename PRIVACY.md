@@ -62,7 +62,7 @@ You can also revoke access directly from:
 ## Open Source
 
 StreamTTS is open source. You can review the complete source code at:
-https://github.com/YOUR_USERNAME/echo-TTS
+https://github.com/MananJK/StreamTTS
 
 ## Changes to This Policy
 
