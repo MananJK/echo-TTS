@@ -1,34 +1,150 @@
 import { Message } from '@/types/message';
 
-// YouTube Service for managing YouTube Live Chat connections
-const YOUTUBE_TOKEN_KEY = 'youtube_oauth_token';
+const YOUTUBE_TOKEN_KEY = 'youtube_oauth_tokens';
 
-// Check if we have a valid YouTube OAuth token
+export interface YouTubeTokens {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+}
+
+interface TokenResponse {
+  access_token: string;
+  refresh_token?: string;
+  expires_in: number;
+  token_type: string;
+}
+
 export const hasYoutubeOAuthToken = (): boolean => {
-  const token = localStorage.getItem(YOUTUBE_TOKEN_KEY);
-  return !!token;
+  const tokens = getStoredTokens();
+  return !!tokens && !!tokens.access_token;
 };
 
-// Save YouTube OAuth token to local storage
+export const getStoredTokens = (): YouTubeTokens | null => {
+  try {
+    const stored = localStorage.getItem(YOUTUBE_TOKEN_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored) as YouTubeTokens;
+  } catch {
+    return null;
+  }
+};
+
+export const saveYoutubeTokens = (tokens: YouTubeTokens): void => {
+  localStorage.setItem(YOUTUBE_TOKEN_KEY, JSON.stringify(tokens));
+};
+
 export const saveYoutubeOAuthToken = async (token: string): Promise<boolean> => {
-  localStorage.setItem(YOUTUBE_TOKEN_KEY, token);
+  const tokens: YouTubeTokens = {
+    access_token: token,
+    refresh_token: '',
+    expires_at: Date.now() + 3600 * 1000,
+  };
+  saveYoutubeTokens(tokens);
   
-  // Validate token immediately after saving
   const isValid = await validateToken(token);
-  
   if (!isValid) {
     console.warn("YouTubeService: Token validation failed, may have insufficient permissions");
   }
-  
   return isValid;
 };
 
-// Validate a YouTube token to ensure it's working (improved error handling)
+export const clearYoutubeOAuthToken = (): void => {
+  localStorage.removeItem(YOUTUBE_TOKEN_KEY);
+};
+
+export const refreshYoutubeToken = async (): Promise<string | null> => {
+  const tokens = getStoredTokens();
+  if (!tokens || !tokens.refresh_token) {
+    console.log("YouTubeService: No refresh token available");
+    return null;
+  }
+
+  const maxRetries = 3;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      const response = await fetch('http://localhost:3000/auth-refresh', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: tokens.refresh_token }),
+      });
+
+      if (response.ok) {
+        const data: TokenResponse = await response.json();
+        
+        const newTokens: YouTubeTokens = {
+          access_token: data.access_token,
+          refresh_token: data.refresh_token || tokens.refresh_token,
+          expires_at: Date.now() + (data.expires_in * 1000),
+        };
+        
+        saveYoutubeTokens(newTokens);
+        console.log("YouTubeService: Token refreshed successfully");
+        return data.access_token;
+      }
+
+      const errorData = await response.json();
+      console.error("YouTubeService: Token refresh failed", errorData);
+      
+      if (errorData.error === 'invalid_grant' || errorData.error === 'invalid_client') {
+        console.log("YouTubeService: Refresh token is invalid, clearing tokens");
+        clearYoutubeOAuthToken();
+        return null;
+      }
+      
+      if (attempt < maxRetries - 1) {
+        const delay = 1000 * (attempt + 1);
+        console.log(`YouTubeService: Refresh attempt ${attempt + 1} failed, retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } catch (error) {
+      console.error("YouTubeService: Error refreshing token", error);
+      if (attempt < maxRetries - 1) {
+        const delay = 1000 * (attempt + 1);
+        console.log(`YouTubeService: Network error, retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+  }
+
+  console.log("YouTubeService: All refresh attempts failed, keeping existing tokens");
+  return null;
+};
+
+export const getValidYoutubeToken = async (): Promise<string | null> => {
+  const tokens = getStoredTokens();
+  if (!tokens || !tokens.access_token) {
+    return null;
+  }
+
+  const bufferMs = 5 * 60 * 1000;
+  if (Date.now() >= (tokens.expires_at - bufferMs)) {
+    console.log("YouTubeService: Token expired or expiring soon, refreshing...");
+    const newToken = await refreshYoutubeToken();
+    if (newToken) return newToken;
+    
+    if (tokens.access_token && Date.now() < tokens.expires_at) {
+      console.log("YouTubeService: Refresh failed, using existing token as fallback");
+      return tokens.access_token;
+    }
+    return null;
+  }
+
+  return tokens.access_token;
+};
+
+export const getYoutubeOAuthToken = (): string | null => {
+  const tokens = getStoredTokens();
+  return tokens?.access_token || null;
+};
+
 export const validateToken = async (token: string): Promise<boolean> => {
   try {
-    // Simple API call to check if the token is valid with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     
     const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
       headers: {
@@ -40,63 +156,34 @@ export const validateToken = async (token: string): Promise<boolean> => {
     clearTimeout(timeoutId);
     
     if (response.ok) {
-      const data = await response.json();
       return true;
     } else {
-      const errorText = await response.text();
-      console.error(`YouTubeService: Token validation failed (${response.status})`, errorText);
-      
-      // Only clear token for 401 errors (expired/invalid tokens)
-      if (response.status === 401) {
-        localStorage.removeItem(YOUTUBE_TOKEN_KEY);
-      }
-      // For 403 errors (insufficient permissions), don't clear the token
-      // The user can still use some features and can re-authenticate if needed
-      
+      console.error(`YouTubeService: Token validation failed (${response.status})`);
       return false;
     }
   } catch (error) {
     console.error("YouTubeService: Token validation error", error);
-    
-    // For network/timeout errors, don't clear the token - it might be a temporary issue
-    if (error instanceof Error && error.name === 'AbortError') {
-    }
-    
     return false;
   }
 };
 
-// Get the stored YouTube OAuth token
-export const getYoutubeOAuthToken = (): string | null => {
-  return localStorage.getItem(YOUTUBE_TOKEN_KEY);
-};
-
-// Clear the YouTube OAuth token
-export const clearYoutubeOAuthToken = (): void => {
-  localStorage.removeItem(YOUTUBE_TOKEN_KEY);
-};
-
-// Fetch active YouTube live broadcasts (improved error handling and resilience)
 export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
   try {
-    const token = getYoutubeOAuthToken();
+    const token = await getValidYoutubeToken();
     if (!token) {
       console.error("YouTube Service: No OAuth token available");
-      throw new Error('No YouTube OAuth token available. Please log in to YouTube first.');
+      throw new Error('Please log in to YouTube first.');
     }
 
-    // Validate token format
     if (typeof token !== 'string' || token.trim().length === 0) {
       console.error("YouTube Service: Invalid token format");
-      throw new Error('Invalid YouTube OAuth token. Please log out and log in again.');
+      throw new Error('Your session is invalid. Please log in again.');
     }
 
-    
-    // Add timeout protection for broadcast fetching (increased timeout)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-    }, 20000); // Increased to 20 second timeout
+    }, 20000);
     
     const response = await fetch(
       'https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,contentDetails&broadcastStatus=active',
@@ -119,30 +206,26 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
       }
       console.error('YouTube API error:', errorData);
       
-      // Handle token expiration
       if (response.status === 401) {
         clearYoutubeOAuthToken();
-        throw new Error('YouTube authentication expired. Please log in again.');
+        throw new Error('Your YouTube session has expired. Please log in again.');
       }
       
-      // Handle permission issues - be more specific about the error
       if (response.status === 403) {
-        // Check if this is a quota/rate limit issue
         const errorText = await response.text();
         if (errorText.includes('quotaExceeded') || errorText.includes('dailyLimitExceeded')) {
-          throw new Error('YouTube API quota exceeded. This app has reached its daily usage limit. Please try again tomorrow or contact support.');
+          throw new Error("YouTube's daily limit reached. Please try again tomorrow.");
         } else if (errorText.includes('liveStreamingNotEnabled')) {
-          throw new Error('Live streaming is not enabled on your YouTube channel. Please enable live streaming in YouTube Studio first.');
+          throw new Error('Live streaming is not enabled on your channel. Enable it in YouTube Studio.');
         } else if (errorText.includes('insufficientPermissions')) {
-          throw new Error('Insufficient YouTube permissions. Please log out and log in again to grant all required permissions.');
+          throw new Error('Permission denied. Please log out and log back in.');
         } else {
-          throw new Error('YouTube API access denied. Please ensure your channel has live streaming enabled and try logging in again with full permissions.');
+          throw new Error('Access denied. Please log out and log back in.');
         }
       }
       
-      // For other errors, provide more context
       const errorMessage = errorData.error?.message || 'Unknown error';
-      throw new Error(`YouTube API error (${response.status}): ${errorMessage}`);
+      throw new Error(`Something went wrong. Please try again.`);
     }
 
     let data;
@@ -150,16 +233,14 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
       data = await response.json();
     } catch (jsonError) {
       console.error("YouTube Service: Failed to parse JSON response:", jsonError);
-      throw new Error('Invalid response from YouTube API. Please try again later.');
+      throw new Error('Something went wrong. Please try again.');
     }
     
-    // Validate response structure
     if (!data || typeof data !== 'object') {
       console.error("YouTube Service: Invalid response structure:", data);
-      throw new Error('Unexpected response format from YouTube API.');
+      throw new Error('Something went wrong. Please try again.');
     }
     
-    // If no broadcasts found, return empty array
     if (!data.items || data.items.length === 0) {
       return [];
     }
@@ -168,10 +249,9 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
   } catch (error) {
     console.error('Error fetching YouTube broadcasts:', error);
     
-    // Handle timeout/abort errors specifically
     if (error instanceof Error && error.name === 'AbortError') {
       console.error('YouTube Service: Broadcast fetch timed out');
-      throw new Error('YouTube API is not responding. Please check your internet connection and try again later.');
+      throw new Error('Could not connect to YouTube. Check your internet and try again.');
     }
     
     console.error('YouTube Service: Error fetching broadcasts:', error);
@@ -179,25 +259,21 @@ export const fetchYouTubeLiveBroadcasts = async (): Promise<any[]> => {
   }
 };
 
-// Connect to YouTube live chat
 export const connectToYouTubeLiveChat = async (
   broadcastId: string,
   onMessage: (message: any) => void,
   onError: (error: Error) => void
 ): Promise<{ disconnect: () => void }> => {
-  // Real YouTube chat connection (improved resilience)
   try {
-    const token = getYoutubeOAuthToken();
+    const token = await getValidYoutubeToken();
     if (!token) {
-      throw new Error('No YouTube OAuth token available');
+      throw new Error('Please log in to YouTube first.');
     }
     
-    
-    // First, get the liveChatId for the broadcast with timeout (increased timeout)
     const broadcastController = new AbortController();
     const broadcastTimeout = setTimeout(() => {
       broadcastController.abort();
-    }, 20000); // Increased to 20 second timeout
+    }, 20000);
     
     const broadcastResponse = await fetch(
       `https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,contentDetails&id=${broadcastId}`,
@@ -222,28 +298,26 @@ export const connectToYouTubeLiveChat = async (
       
       if (broadcastResponse.status === 401) {
         clearYoutubeOAuthToken();
-        throw new Error('YouTube authentication expired. Please log in again.');
+        throw new Error('Your YouTube session has expired. Please log in again.');
       } else if (broadcastResponse.status === 403) {
-        throw new Error('YouTube authentication lacks required permissions for live chat access. Please log out and log in again to grant full YouTube permissions.');
+        throw new Error('Permission denied. Please log out and log back in.');
       }
       
       const errorMessage = errorData.error?.message || 'Unknown error';
-      throw new Error(`YouTube API error (${broadcastResponse.status}): ${errorMessage}`);
+      throw new Error('Something went wrong. Please try again.');
     }
     
     const broadcastData = await broadcastResponse.json();
     
     if (!broadcastData.items || broadcastData.items.length === 0) {
-      throw new Error('Broadcast not found or is not accessible');
+      throw new Error('Stream not found. It may have ended.');
     }
     
     const liveChatId = broadcastData.items[0].snippet.liveChatId;
     if (!liveChatId) {
-      throw new Error('Live chat is not available for this broadcast or the stream is not currently live');
+      throw new Error('Chat is not available. The stream may have ended.');
     }
     
-    
-    // Set up polling for chat messages
     let nextPageToken: string | null = null;
     let timeoutId: NodeJS.Timeout | null = null;
     let isConnected = true;
@@ -254,6 +328,11 @@ export const connectToYouTubeLiveChat = async (
       if (!isConnected) return;
       
       try {
+        const currentToken = await getValidYoutubeToken();
+        if (!currentToken) {
+          throw new Error('YouTube authentication expired. Please log in again.');
+        }
+        
         const url = new URL('https://www.googleapis.com/youtube/v3/liveChat/messages');
         url.searchParams.append('part', 'snippet,authorDetails');
         url.searchParams.append('liveChatId', liveChatId);
@@ -263,15 +342,14 @@ export const connectToYouTubeLiveChat = async (
           url.searchParams.append('pageToken', nextPageToken);
         }
         
-        // Add timeout protection for message fetching (increased timeout)
         const fetchController = new AbortController();
         const fetchTimeout = setTimeout(() => {
           fetchController.abort();
-        }, 20000); // Increased to 20 second timeout for consistency
+        }, 20000);
         
         const response = await fetch(url.toString(), {
           headers: {
-            Authorization: `Bearer ${token}`
+            Authorization: `Bearer ${currentToken}`
           },
           signal: fetchController.signal
         });
@@ -287,36 +365,30 @@ export const connectToYouTubeLiveChat = async (
           }
           console.error('YouTube chat API error:', errorData);
           
-          // Handle token expiration - only clear for 401 errors
           if (response.status === 401) {
             clearYoutubeOAuthToken();
-            throw new Error('YouTube authentication expired. Please log in again.');
+            throw new Error('Your YouTube session has expired. Please log in again.');
           }
           
-          // For 403 errors, don't clear token but provide specific error
           if (response.status === 403) {
-            throw new Error('YouTube authentication lacks required permissions for live chat access. Please log out and log in again to grant full YouTube permissions.');
+            throw new Error('Permission denied. Please log out and log back in.');
           }
           
-          // For rate limiting (429), provide specific guidance
           if (response.status === 429) {
-            throw new Error('YouTube API rate limit exceeded. Please wait a moment and try again.');
+            throw new Error('Too many requests. Wait a moment and try again.');
           }
           
           const errorMessage = errorData.error?.message || 'Unknown error';
-          throw new Error(`YouTube API error (${response.status}): ${errorMessage}`);
+          throw new Error('Something went wrong. Please try again.');
         }
         
         const data = await response.json();
         nextPageToken = data.nextPageToken;
         
-        // Reset error count on successful fetch
         errorCount = 0;
         
-        // Process new messages
         if (data.items && data.items.length > 0) {
           data.items.forEach((message: any) => {
-            // Only process 'textMessageEvent' type messages
             if (message.snippet.type === 'textMessageEvent') {
               onMessage({
                 id: message.id,
@@ -328,7 +400,6 @@ export const connectToYouTubeLiveChat = async (
           });
         }
         
-        // Use pollingIntervalMillis from the response for proper rate limiting
         const pollInterval = data.pollingIntervalMillis || 10000;
         if (isConnected) {
           timeoutId = setTimeout(() => {
@@ -340,7 +411,6 @@ export const connectToYouTubeLiveChat = async (
       } catch (error) {
         console.error('Error fetching chat messages:', error);
         
-        // Handle timeout/abort errors
         if (error instanceof Error && error.name === 'AbortError') {
           console.error('YouTube: Request timed out');
           errorCount++;
@@ -348,7 +418,6 @@ export const connectToYouTubeLiveChat = async (
           errorCount++;
         }
         
-        // Only call onError and stop if we've had too many consecutive errors
         if (errorCount >= MAX_ERRORS) {
           console.error(`YouTube: Too many consecutive errors (${errorCount}), stopping polling`);
           onError(error as Error);
@@ -356,9 +425,8 @@ export const connectToYouTubeLiveChat = async (
           return;
         }
         
-        // Retry after a delay if still connected
         if (isConnected) {
-          const retryDelay = Math.min(15000 * errorCount, 60000); // Exponential backoff, max 1 minute
+          const retryDelay = Math.min(15000 * errorCount, 60000);
           timeoutId = setTimeout(() => {
             fetchChatMessages().catch(err => {
               console.error('YouTube: Error in retry fetch:', err);
@@ -368,14 +436,12 @@ export const connectToYouTubeLiveChat = async (
       }
     };
     
-    // Start fetching messages with initial delay to allow connection to establish
     timeoutId = setTimeout(() => {
       fetchChatMessages().catch(err => {
         console.error('YouTube: Error in initial fetch:', err);
       });
     }, 1000);
     
-    // Return disconnect function
     return {
       disconnect: () => {
         isConnected = false;
@@ -388,9 +454,8 @@ export const connectToYouTubeLiveChat = async (
   } catch (error) {
     console.error('Error connecting to YouTube chat:', error);
     
-    // Handle timeout/abort errors specifically
     if (error instanceof Error && error.name === 'AbortError') {
-      const timeoutError = new Error('Connection timeout - YouTube API is not responding');
+      const timeoutError = new Error('Could not connect to YouTube. Please try again.');
       onError(timeoutError);
       throw timeoutError;
     }
@@ -400,7 +465,6 @@ export const connectToYouTubeLiveChat = async (
   }
 };
 
-// Helper function to generate consistent colors from channel IDs
 function generateColorFromChannelId(channelId: string): string {
   let hash = 0;
   for (let i = 0; i < channelId.length; i++) {
@@ -411,15 +475,13 @@ function generateColorFromChannelId(channelId: string): string {
   return `hsl(${hue}, 70%, 50%)`;
 }
 
-// Get the YouTube channel ID for the authenticated user
 export const getYoutubeChannelId = async (): Promise<string | null> => {
   try {
-    const token = getYoutubeOAuthToken();
+    const token = await getValidYoutubeToken();
     if (!token) {
       return null;
     }
     
-    // Call YouTube API to get user's channel info
     const response = await fetch(
       'https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true',
       {
@@ -447,10 +509,9 @@ export const getYoutubeChannelId = async (): Promise<string | null> => {
   }
 };
 
-// Check if user's channel has live streaming enabled
 export const checkLiveStreamingEnabled = async (): Promise<{ enabled: boolean; reason?: string }> => {
   try {
-    const token = getYoutubeOAuthToken();
+    const token = await getValidYoutubeToken();
     if (!token) {
       return { enabled: false, reason: 'No authentication token' };
     }
@@ -475,7 +536,6 @@ export const checkLiveStreamingEnabled = async (): Promise<{ enabled: boolean; r
           return { enabled: false, reason: 'Made for Kids channels cannot use live streaming' };
         }
         
-        // Check if live streaming is specifically enabled
         if (status?.longUploadsStatus !== 'allowed') {
           return { enabled: false, reason: 'Channel not verified for live streaming. Please verify your channel with a phone number.' };
         }

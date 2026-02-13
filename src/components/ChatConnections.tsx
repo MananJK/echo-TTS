@@ -17,12 +17,12 @@ import {
 import { 
   connectToYouTubeLiveChat,
   hasYoutubeOAuthToken,
-  saveYoutubeOAuthToken,
-  getYoutubeChannelId,
   clearYoutubeOAuthToken,
   fetchYouTubeLiveBroadcasts,
-  validateToken,
-  checkLiveStreamingEnabled
+  checkLiveStreamingEnabled,
+  getValidYoutubeToken,
+  saveYoutubeTokens,
+  YouTubeTokens
 } from '@/services/youtubeService';
 import { Link } from 'react-router-dom';
 import YouTubeOAuthButton from '@/components/YouTubeOAuthButton';
@@ -83,10 +83,18 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       if (event.data && event.data.type === 'youtube-oauth-callback' && event.data.token) {
         
         try {
-          // Save token and check if it's valid
-          const isValid = await saveYoutubeOAuthToken(event.data.token);
+          if (event.data.refresh_token && event.data.expires_in) {
+            const tokens: YouTubeTokens = {
+              access_token: event.data.token,
+              refresh_token: event.data.refresh_token,
+              expires_at: Date.now() + (event.data.expires_in * 1000),
+            };
+            saveYoutubeTokens(tokens);
+          }
           
-          if (isValid) {
+          const token = await getValidYoutubeToken();
+          
+          if (token) {
             setIsYoutubeAuthed(true);
             toast({
               title: "YouTube Authentication Successful",
@@ -154,9 +162,22 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     };
   }, [toast]);
 
-  // Debug function to validate the YouTube token (improved error handling)
-  const validateYouTubeToken = async (token: string, silent = false) => {
+  const validateYouTubeToken = async (_token: string, silent = false) => {
     try {
+      const token = await getValidYoutubeToken();
+      
+      if (!token) {
+        setIsYoutubeAuthed(false);
+        if (!silent) {
+          toast({
+            title: "YouTube Session Expired",
+            description: "Your YouTube session has expired. Please log in again.",
+            variant: "destructive"
+          });
+        }
+        return false;
+      }
+      
       const response = await fetch('https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -166,7 +187,6 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       if (response.ok) {
         const data = await response.json();
         
-        // Check if user has any live broadcasts (only if not silent)
         if (!silent) {
           checkForLiveBroadcasts(token, silent);
         }
@@ -175,33 +195,32 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         const errorText = await response.text();
         console.error("YouTube token validation failed:", response.status, errorText);
         
-        // Only clear token and update UI state for 401 errors (expired/invalid tokens)
         if (response.status === 401) {
           setIsYoutubeAuthed(false);
-          localStorage.removeItem('youtube_oauth_token');
           
           if (!silent) {
             toast({
-              title: "YouTube Session Expired",
+              title: "Session Expired",
               description: "Your YouTube session has expired. Please log in again.",
-              variant: "destructive"
+              variant: "destructive",
+              duration: 5000
             });
           }
         } else if (response.status === 403) {
-          // For 403 errors, don't clear the token but show a warning
           if (!silent) {
             toast({
-              title: "YouTube Permission Warning",
-              description: "Some YouTube features may not work due to insufficient permissions.",
-              variant: "destructive"
+              title: "Permission Required",
+              description: "Please log out and log back in to grant chat access.",
+              variant: "destructive",
+              duration: 5000
             });
           }
         } else if (!silent) {
-          // For other errors, just show a general warning without clearing the token
           toast({
-            title: "YouTube Authentication Issue",
-            description: "There was an issue validating your YouTube authentication. Some features may not work properly.",
-            variant: "destructive"
+            title: "Connection Issue",
+            description: "Could not verify your YouTube connection. Please try again.",
+            variant: "destructive",
+            duration: 5000
           });
         }
         
@@ -209,12 +228,12 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       }
     } catch (error) {
       console.error("Error validating YouTube token:", error);
-      // For network errors, don't clear the token - the issue might be temporary
       if (!silent) {
         toast({
-          title: "YouTube Connection Issue",
-          description: "Could not validate YouTube authentication due to network issues.",
-          variant: "destructive"
+          title: "Connection Issue",
+          description: "Could not connect to YouTube. Check your internet and try again.",
+          variant: "destructive",
+          duration: 5000
         });
       }
       return false;
@@ -263,17 +282,18 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         if (response.status === 403) {
           if (!silent) {
             toast({
-              title: "YouTube Permission Error",
-              description: "Insufficient permissions for live chat access. Please log out and log in again to grant full YouTube permissions.",
+              title: "Permission Required",
+              description: "Please log out and log back in to grant chat access.",
               variant: "destructive",
-              duration: 8000
+              duration: 5000
             });
           }
         } else if (!silent) {
           toast({
-            title: "YouTube API Error",
-            description: "Could not check for live streams. This may be due to missing permissions.",
-            variant: "destructive"
+            title: "Connection Error",
+            description: "Could not check for live streams. Please try again.",
+            variant: "destructive",
+            duration: 5000
           });
         }
         return false;
@@ -304,20 +324,23 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   useEffect(() => {
     // Only verify YouTube token on mount if authenticated
     if (isYoutubeAuthed) {
-      const token = localStorage.getItem('youtube_oauth_token');
-      if (token) {
-        // Use silent validation to avoid UI disruption
-        validateYouTubeToken(token, true);
-      }
+      void (async () => {
+        const token = await getValidYoutubeToken();
+        if (token) {
+          validateYouTubeToken(token, true);
+        }
+      })();
     }
     
     // Set up periodic check for YouTube token validity (every 10 minutes, reduced from 5)
     const intervalId = setInterval(() => {
       if (isYoutubeAuthed) {
-        const token = localStorage.getItem('youtube_oauth_token');
-        if (token) {
-          validateYouTubeToken(token, true); // always silent check
-        }
+        void (async () => {
+          const token = await getValidYoutubeToken();
+          if (token) {
+            validateYouTubeToken(token, true);
+          }
+        })();
       }
     }, 10 * 60 * 1000);
     
@@ -543,36 +566,34 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         
         // Handle specific broadcast fetch errors
         if (broadcastFetchError instanceof Error) {
-          let errorTitle = "YouTube Error";
-          let errorDescription = "An error occurred while connecting to YouTube";
+          let errorTitle = "Connection Error";
+          let errorDescription = broadcastFetchError.message;
           
-          if (broadcastFetchError.message.includes('insufficient permissions') || 
-              broadcastFetchError.message.includes('403')) {
-            errorTitle = "YouTube Permission Error";
-            errorDescription = "Please log out and log in again to grant full YouTube permissions.";
-          } else if (broadcastFetchError.message.includes('not responding') || 
-                     broadcastFetchError.message.includes('timeout') ||
-                     broadcastFetchError.message.includes('AbortError')) {
-            errorTitle = "YouTube API Timeout";
-            errorDescription = "YouTube API is not responding. Please try again later.";
-          } else if (broadcastFetchError.message.includes('401')) {
-            errorTitle = "YouTube Authentication Expired";
-            errorDescription = "Your YouTube session has expired. Please log in again.";
-          } else {
-            errorDescription = broadcastFetchError.message;
+          if (broadcastFetchError.message.includes('Permission denied') || 
+              broadcastFetchError.message.includes('log out and log back in')) {
+            errorTitle = "Permission Required";
+          } else if (broadcastFetchError.message.includes('Could not connect') || 
+                     broadcastFetchError.message.includes('internet')) {
+            errorTitle = "Connection Problem";
+          } else if (broadcastFetchError.message.includes('session has expired') || 
+                     broadcastFetchError.message.includes('log in again')) {
+            errorTitle = "Session Expired";
+          } else if (broadcastFetchError.message.includes('daily limit')) {
+            errorTitle = "Limit Reached";
           }
           
           toast({
             title: errorTitle,
             description: errorDescription,
             variant: "destructive",
-            duration: 8000
+            duration: 5000
           });
         } else {
           toast({
-            title: "YouTube Connection Error",
-            description: "An unexpected error occurred while fetching broadcasts",
-            variant: "destructive"
+            title: "Connection Error",
+            description: "Something went wrong. Please try again.",
+            variant: "destructive",
+            duration: 5000
           });
         }
         return; // Exit early if we can't fetch broadcasts
@@ -622,9 +643,10 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
                 setIsYoutubeStreamConnected(false);
 
                 toast({
-                  title: "YouTube Connection Error",
-                  description: error.message || "Failed to connect to YouTube",
-                  variant: "destructive"
+                  title: "Connection Error",
+                  description: error.message || "Could not connect to YouTube chat.",
+                  variant: "destructive",
+                  duration: 5000
                 });
               }
             );
@@ -655,28 +677,14 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
             const updatedList = currentConnections.filter(conn => conn.id !== connectionId);
             onConnectionChange(updatedList);
             
-            // Handle specific error types
+            // Show user-friendly error message
             if (connectionError instanceof Error) {
-              if (connectionError.message.includes('insufficient permissions')) {
-                toast({
-                  title: "YouTube Permission Error",
-                  description: "Please log out and log in again to grant full YouTube permissions.",
-                  variant: "destructive",
-                  duration: 8000
-                });
-              } else if (connectionError.message.includes('not responding')) {
-                toast({
-                  title: "YouTube Connection Timeout",
-                  description: "YouTube API is not responding. Please try again later.",
-                  variant: "destructive"
-                });
-              } else {
-                toast({
-                  title: "YouTube Connection Error",
-                  description: connectionError.message,
-                  variant: "destructive"
-                });
-              }
+              toast({
+                title: "Connection Error",
+                description: connectionError.message,
+                variant: "destructive",
+                duration: 5000
+              });
             }
           }
         } else {
@@ -689,33 +697,24 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         
         toast({
           title: "No Active Streams",
-          description: "No active YouTube live streams found. Please start a live stream on YouTube first.",
+          description: "Start a live stream on YouTube, then try again.",
           variant: "destructive",
-          duration: 6000
+          duration: 5000
         });
       }
     } catch (error) {
       console.error("Unexpected error in handleConnectToYoutube:", error);
       
-      // Provide more specific error messaging
-      let errorMessage = "An unexpected error occurred. Please try again.";
+      let errorMessage = "Something went wrong. Please try again.";
       if (error instanceof Error) {
-        if (error.message.includes('Failed to fetch')) {
-          errorMessage = "Network error. Please check your internet connection and try again.";
-        } else if (error.message.includes('timeout')) {
-          errorMessage = "Connection timed out. Please try again later.";
-        } else if (error.message.includes('abort')) {
-          errorMessage = "Request was cancelled. Please try again.";
-        } else {
-          errorMessage = `Error: ${error.message}`;
-        }
+        errorMessage = error.message;
       }
       
       toast({
-        title: "YouTube Connection Error",
+        title: "Connection Error",
         description: errorMessage,
         variant: "destructive",
-        duration: 8000
+        duration: 5000
       });
     } finally {
       setIsConnectingYoutube(false);
@@ -964,12 +963,13 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   // Diagnostic function to help troubleshoot YouTube issues
   const diagnoseYouTubeIssues = async () => {
     
-    const token = localStorage.getItem('youtube_oauth_token');
+    const token = await getValidYoutubeToken();
     if (!token) {
       toast({
-        title: "YouTube Diagnostic",
-        description: "No YouTube authentication token found. Please login first.",
-        variant: "destructive"
+        title: "Not Logged In",
+        description: "Please log in to YouTube first.",
+        variant: "destructive",
+        duration: 5000
       });
       return;
     }
@@ -985,38 +985,35 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         const channelData = await channelResponse.json();
         
         toast({
-          title: "✅ Basic YouTube API",
+          title: "✅ Connected",
           description: `Connected to channel: ${channelData.items?.[0]?.snippet?.title || 'Unknown'}`,
+          duration: 5000
         });
       } else {
-        const errorText = await channelResponse.text();
-        
         // Provide specific guidance based on error
         if (channelResponse.status === 403) {
-          const errorMsg = "403 Forbidden - Likely permissions or quota issue";
-          
           toast({
-            title: "❌ YouTube API Error (403)",
-            description: "Permission denied. Enable live streaming in YouTube Studio and reset auth.",
+            title: "❌ Permission Denied",
+            description: "Enable live streaming in YouTube Studio and log in again.",
             variant: "destructive",
-            duration: 8000
+            duration: 5000
           });
         } else if (channelResponse.status === 401) {
           toast({
-            title: "❌ YouTube Auth Expired (401)",
-            description: "Your authentication has expired. Please log in again.",
+            title: "❌ Session Expired",
+            description: "Please log in again.",
             variant: "destructive",
-            duration: 8000
+            duration: 5000
           });
         } else if (channelResponse.status === 429) {
           toast({
-            title: "❌ YouTube Quota Exceeded (429)",
-            description: "API quota exceeded. Try again tomorrow or contact support.",
+            title: "❌ Limit Reached",
+            description: "Too many requests. Wait a moment and try again.",
             variant: "destructive",
-            duration: 8000
+            duration: 5000
           });
         }
-        return; // Stop diagnostics if basic API fails
+        return;
       }
       
       // Test 2: Check live streaming capability
@@ -1024,22 +1021,24 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         const liveStreamCheck = await checkLiveStreamingEnabled();
         if (liveStreamCheck.enabled) {
           toast({
-            title: "✅ Live Streaming Enabled",
+            title: "✅ Live Streaming Ready",
             description: "Your channel can create live streams.",
+            duration: 5000
           });
         } else {
           toast({
             title: "❌ Live Streaming Disabled",
-            description: "Enable live streaming in YouTube Studio → Settings → Channel → Features",
+            description: "Enable live streaming in YouTube Studio.",
             variant: "destructive",
-            duration: 10000
+            duration: 5000
           });
         }
       } catch (liveStreamError) {
         toast({
-          title: "⚠️ Live Streaming Check Failed",
-          description: "Could not verify live streaming status. Check YouTube Studio manually.",
-          variant: "destructive"
+          title: "⚠️ Check Failed",
+          description: "Could not verify live streaming status.",
+          variant: "destructive",
+          duration: 5000
         });
       }
       

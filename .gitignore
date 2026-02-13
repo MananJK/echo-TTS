@@ -40,3 +40,6 @@ electron-build-fresh/
 *.sln
 *.sw?
 NUL
+
+# Tauri telemetry
+telemetry-id

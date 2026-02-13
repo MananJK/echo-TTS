@@ -18,6 +18,9 @@ pub struct AppState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load environment variables from .env file
+    dotenv::dotenv().ok();
+    
     let (oauth_sender, mut oauth_receiver) = broadcast::channel(32);
     let (alert_sender, mut alert_receiver) = broadcast::channel(32);
     
@@ -58,7 +61,9 @@ tauri::Builder::default()
                                 "type": format!("{}-oauth-callback", callback.service),
                                 "token": callback.token,
                                 "service": callback.service,
-                                "error": callback.error
+                                "error": callback.error,
+                                "refresh_token": callback.refresh_token,
+                                "expires_in": callback.expires_in
                             });
                             
                             app_handle_oauth.emit("auth-callback", payload)
