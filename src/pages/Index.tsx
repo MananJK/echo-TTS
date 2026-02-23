@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
@@ -67,28 +67,22 @@ const Index = () => {
     // rather than loading at startup
   }, []);
 
-  // Initialize TTS only when needed (when user navigates to chat tab)
   useEffect(() => {
     if (activeTab === 'chat' && !ttsInitialized) {
-      // Get available voices for browser TTS
       const loadVoices = () => {
         const voices = getAvailableBrowserVoices();
         setAvailableVoices(voices);
         
-        // If no voice is selected yet, try to find Microsoft Pavel or another Russian voice
         if (!selectedVoice) {
-          // First, try to find Microsoft Pavel specifically
           const pavelVoice = voices.find(v => 
             v.name.includes('Pavel') || 
             v.name.includes('Microsoft Pavel')
           );
           
-          // If Pavel is found, use it
           if (pavelVoice) {
             setSelectedVoice(pavelVoice.name);
             localStorage.setItem('selectedVoice', pavelVoice.name);
           } else {
-            // Otherwise, fall back to any Russian voice
             const russianVoice = voices.find(v => 
               v.lang.startsWith('ru') || 
               v.name.includes('Russian') || 
@@ -105,11 +99,17 @@ const Index = () => {
         setTtsInitialized(true);
       };
       
-      // Voice list might not be available immediately in some browsers
       if ('speechSynthesis' in window) {
-        // Chrome loads voices asynchronously
         if (window.speechSynthesis.getVoices().length === 0) {
-          window.speechSynthesis.onvoiceschanged = loadVoices;
+          const handleVoicesChanged = () => {
+            loadVoices();
+            window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+          };
+          window.speechSynthesis.addEventListener('voiceschanged', handleVoicesChanged);
+          
+          return () => {
+            window.speechSynthesis.removeEventListener('voiceschanged', handleVoicesChanged);
+          };
         } else {
           loadVoices();
         }
@@ -133,41 +133,39 @@ const Index = () => {
   // This avoids the reconnection issue that was caused by this useEffect
   // running every time chatConnections array changed and calling connect functions again
 
-  // Handle API key submission
-  const handleApiKeySubmit = (key: string) => {
+  const handleApiKeySubmit = useCallback((key: string) => {
     setApiKey(key);
     localStorage.setItem('elevenLabsApiKey', key);
     toast({
+      id: 'api-key-saved',
       title: "API Key Saved",
       description: "Your ElevenLabs API key has been saved"
     });
-  };
+  }, [toast]);
 
-  // Handle volume change
-  const handleVolumeChange = (value: number) => {
+  const handleVolumeChange = useCallback((value: number) => {
     setVolume(value);
     localStorage.setItem('ttsVolume', value.toString());
-  };
+  }, []);
 
-  // Handle TTS provider change
-  const handleProviderChange = (checked: boolean) => {
+  const handleProviderChange = useCallback((checked: boolean) => {
     const newProvider: TTSProvider = checked ? 'elevenlabs' : 'browser';
     setTtsProvider(newProvider);
     localStorage.setItem('ttsProvider', newProvider);
     
     toast({
+      id: 'tts-provider-changed',
       title: `Switched to ${newProvider === 'browser' ? 'Browser TTS' : 'ElevenLabs'}`,
       description: newProvider === 'elevenlabs' 
         ? "Using ElevenLabs for TTS (requires API key)" 
         : "Using browser's built-in TTS (unlimited usage)"
     });
-  };
+  }, [toast]);
 
-  // Handle voice selection
-  const handleVoiceChange = (voice: string) => {
+  const handleVoiceChange = useCallback((voice: string) => {
     setSelectedVoice(voice);
     localStorage.setItem('selectedVoice', voice);
-  };
+  }, []);
 
   // Process message queue
   const processMessageQueue = async (newMessage: Message) => {
@@ -241,8 +239,7 @@ const Index = () => {
     }
   };
 
-  // Handle new message
-  const handleSendMessage = (content: string, username?: string) => {
+  const handleSendMessage = useCallback((content: string, username?: string) => {
     const newMessage: Message = {
       id: Date.now().toString(),
       content,
@@ -253,7 +250,7 @@ const Index = () => {
     
     setMessages(prevMessages => [...prevMessages, newMessage]);
     processMessageQueue(newMessage);
-  };
+  }, []);
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-stream-bg flex flex-col">

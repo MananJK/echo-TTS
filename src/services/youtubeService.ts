@@ -15,6 +15,8 @@ interface TokenResponse {
   token_type: string;
 }
 
+let refreshPromise: Promise<string | null> | null = null;
+
 export const hasYoutubeOAuthToken = (): boolean => {
   const tokens = getStoredTokens();
   return !!tokens && !!tokens.access_token;
@@ -54,6 +56,17 @@ export const clearYoutubeOAuthToken = (): void => {
 };
 
 export const refreshYoutubeToken = async (): Promise<string | null> => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = doRefresh();
+  const result = await refreshPromise;
+  refreshPromise = null;
+  return result;
+};
+
+const doRefresh = async (): Promise<string | null> => {
   const tokens = getStoredTokens();
   if (!tokens || !tokens.refresh_token) {
     console.log("YouTubeService: No refresh token available");

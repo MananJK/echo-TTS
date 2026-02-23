@@ -53,10 +53,22 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
   const connectionAttempts = useRef<Record<string, number>>({});
   const lastConnectionAttempt = useRef<Record<string, number>>({});
 
-  // Update connectionsRef whenever connections change
   useEffect(() => {
     connectionsRef.current = connections;
   }, [connections]);
+  
+  useEffect(() => {
+    return () => {
+      Object.values(youtubeDisconnectFns.current).forEach(disconnect => {
+        try {
+          disconnect();
+        } catch (e) {
+          console.error('Error cleaning up YouTube connection:', e);
+        }
+      });
+      youtubeDisconnectFns.current = {};
+    };
+  }, []);
 
   // Add effect to listen for auth callbacks from Electron
   useEffect(() => {
@@ -68,18 +80,17 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     
     const handleAuthCallback = async (event: MessageEvent) => {
       
-      // Handle Twitch auth
       if (event.data && event.data.type === 'twitch-oauth-callback' && event.data.token) {
         saveTwitchOAuthToken(event.data.token);
         setIsTwitchAuthed(true);
         
         toast({
+          id: 'twitch-auth-success',
           title: "Twitch Authentication Successful",
           description: "You can now connect to your Twitch channel"
         });
       }
       
-      // Handle YouTube auth
       if (event.data && event.data.type === 'youtube-oauth-callback' && event.data.token) {
         
         try {
@@ -97,29 +108,31 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
           if (token) {
             setIsYoutubeAuthed(true);
             toast({
+              id: 'youtube-auth-success',
               title: "YouTube Authentication Successful",
               description: "You can now connect to your YouTube live stream"
             });
             
-            // Check if user has any live broadcasts
             try {
               const broadcasts = await fetchYouTubeLiveBroadcasts();
               if (!broadcasts || broadcasts.length === 0) {
                 toast({
+                  id: 'youtube-no-streams',
                   title: "No Active YouTube Streams",
                   description: "No active streams found. Start a live stream on YouTube first.",
                   duration: 5000
                 });
               } else {
                 toast({
+                  id: 'youtube-streams-found',
                   title: "YouTube Live Stream Found",
                   description: `Found ${broadcasts.length} active stream(s). Click 'Connect Stream' to monitor chat.`
                 });
               }
             } catch (error) {
               console.error("Error checking for broadcasts:", error);
-              // Handle error
               toast({
+                id: 'youtube-broadcast-error',
                 title: "YouTube Error",
                 description: "Error checking for live streams. Please try again.",
                 variant: "destructive",
@@ -127,8 +140,8 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
               });
             }
           } else {
-            // Token is invalid or insufficient permissions
             toast({
+              id: 'youtube-permission-issue',
               title: "YouTube Permission Issue",
               description: "Authentication succeeded but lacks required permissions for live chat. Please log out and log in again to grant full YouTube access.",
               variant: "destructive",
@@ -138,6 +151,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         } catch (error) {
           console.error("Error in YouTube auth callback:", error);
           toast({
+            id: 'youtube-auth-error',
             title: "YouTube Authentication Error",
             description: "There was a problem authenticating with YouTube. Please try again.",
             variant: "destructive"
@@ -567,7 +581,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
         // Handle specific broadcast fetch errors
         if (broadcastFetchError instanceof Error) {
           let errorTitle = "Connection Error";
-          let errorDescription = broadcastFetchError.message;
+          const errorDescription = broadcastFetchError.message;
           
           if (broadcastFetchError.message.includes('Permission denied') || 
               broadcastFetchError.message.includes('log out and log back in')) {

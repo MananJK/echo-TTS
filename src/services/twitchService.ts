@@ -3,16 +3,26 @@ import { Client } from 'tmi.js';
 type MessageCallback = (username: string, message: string) => void;
 type ConnectionCallback = (connected: boolean, error?: string) => void;
 
-// Track active Twitch client connections
-let twitchClients: { [channelName: string]: Client } = {};
+const twitchClients: { [channelName: string]: Client } = {};
 
-// Track recent connection errors to prevent duplicate notifications
 const recentErrors: { [channelName: string]: { message: string, timestamp: number } } = {};
 
-// Twitch OAuth integration
 const TWITCH_TOKEN_KEY = 'twitchOAuthToken';
 const TWITCH_TOKEN_TIMESTAMP_KEY = 'twitchOAuthTokenTimestamp';
 const TOKEN_STALE_THRESHOLD_MS = 60 * 60 * 1000;
+
+const ERROR_TTL_MS = 30000;
+
+const cleanupOldErrors = (): void => {
+  const now = Date.now();
+  for (const key of Object.keys(recentErrors)) {
+    if (now - recentErrors[key].timestamp > ERROR_TTL_MS) {
+      delete recentErrors[key];
+    }
+  }
+};
+
+setInterval(cleanupOldErrors, 60000);
 
 interface TwitchTokenInfo {
   token: string;
@@ -159,21 +169,22 @@ export const connectToTwitchChat = (
       return;
     }
 
-    // Create a new client with stable connection settings
     const client = new Client({
       options: { 
-        debug: false, // Reduce debug noise
-        clientId: 'udjuiavbj15nv9adih3dioaoj969ny' // Add client ID for better connection handling
+        debug: false,
+        clientId: 'udjuiavbj15nv9adih3dioaoj969ny'
       },
       connection: {
         secure: true,
-        reconnect: false, // Disable auto-reconnect to prevent fighting with manual disconnects
-        timeout: 30000, // 30 second connection timeout
-        reconnectInterval: 2000 // If reconnecting is enabled later, use 2 second intervals
+        reconnect: true,
+        reconnectDecay: 1.5,
+        reconnectInterval: 2000,
+        maxReconnectAttempts: 5,
+        timeout: 30000
       },
       identity: {
-        username: channelName, // Will be ignored if not the correct user
-        password: `oauth:${token}` // Required format for Twitch OAuth
+        username: channelName,
+        password: `oauth:${token}`
       },
       channels: [channelName]
     });
@@ -341,6 +352,21 @@ export const isTwitchConnected = (channelName?: string): boolean => {
   }
   return Object.keys(twitchClients).length > 0;
 };
+
+export const disconnectAllTwitchClients = async (): Promise<void> => {
+  const channelNames = Object.keys(twitchClients);
+  
+  for (const channelName of channelNames) {
+    try {
+      await disconnectFromTwitchChat(channelName);
+    } catch (error) {
+      console.error(`Error disconnecting from ${channelName}:`, error);
+      delete twitchClients[channelName];
+    }
+  }
+};
+
+export { twitchClients };
 
 // Get current user's Twitch username from token
 export const getTwitchUsername = async (): Promise<string | null> => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Volume2, User } from 'lucide-react';
@@ -8,7 +8,13 @@ interface MessageHistoryProps {
   messages: Message[];
 }
 
+const MAX_VISIBLE_MESSAGES = 100;
+
 const MessageHistory: React.FC<MessageHistoryProps> = ({ messages }) => {
+  const visibleMessages = useMemo(() => {
+    return messages.slice(-MAX_VISIBLE_MESSAGES);
+  }, [messages]);
+
   return (
     <Card className="bg-card/50 backdrop-blur-sm border-stream-accent/30 w-full h-[400px]">
       <ScrollArea className="h-full p-4">
@@ -20,7 +26,7 @@ const MessageHistory: React.FC<MessageHistoryProps> = ({ messages }) => {
           </div>
         ) : (
           <div className="space-y-4">
-            {messages.map((message) => (
+            {visibleMessages.map((message) => (
               <div 
                 key={message.id}
                 className={`p-3 rounded-lg ${
@@ -41,6 +47,11 @@ const MessageHistory: React.FC<MessageHistoryProps> = ({ messages }) => {
                 <p className="text-sm ml-6">{message.content.replace(/^!г\s*/i, '')}</p>
               </div>
             ))}
+            {messages.length > MAX_VISIBLE_MESSAGES && (
+              <p className="text-xs text-muted-foreground text-center">
+                Showing last {MAX_VISIBLE_MESSAGES} of {messages.length} messages
+              </p>
+            )}
           </div>
         )}
       </ScrollArea>

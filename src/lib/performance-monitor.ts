@@ -6,6 +6,8 @@ export class PerformanceMonitor {
   private metrics: Map<string, number[]> = new Map();
   private observers: PerformanceObserver[] = [];
   private isMonitoring = false;
+  private memoryIntervalId: ReturnType<typeof setInterval> | null = null;
+  private devLogIntervalId: ReturnType<typeof setInterval> | null = null;
 
   static getInstance(): PerformanceMonitor {
     if (!PerformanceMonitor.instance) {
@@ -26,9 +28,27 @@ export class PerformanceMonitor {
 
   stop(): void {
     this.isMonitoring = false;
+    
+    if (this.memoryIntervalId) {
+      clearInterval(this.memoryIntervalId);
+      this.memoryIntervalId = null;
+    }
+    
+    if (this.devLogIntervalId) {
+      clearInterval(this.devLogIntervalId);
+      this.devLogIntervalId = null;
+    }
+    
     this.observers.forEach(observer => observer.disconnect());
     this.observers = [];
-    
+  }
+  
+  startDevLogging(): void {
+    this.devLogIntervalId = setInterval(() => {
+      if (this.isMonitoring) {
+        console.log('Performance Summary:', this.getPerformanceSummary());
+      }
+    }, 30000);
   }
 
   private setupPerformanceObservers(): void {
@@ -92,19 +112,18 @@ export class PerformanceMonitor {
 
   private monitorMemoryUsage(): void {
     if ('memory' in performance) {
-      setInterval(() => {
-        if (this.isMonitoring) {
-          const memory = (performance as any).memory;
-          this.recordMetric('memory-used', memory.usedJSHeapSize);
-          this.recordMetric('memory-total', memory.totalJSHeapSize);
-          
-          // Warn about high memory usage
-          const memoryUsagePercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
-          if (memoryUsagePercent > 80) {
-            console.warn(`High memory usage: ${memoryUsagePercent.toFixed(1)}%`);
-          }
+      this.memoryIntervalId = setInterval(() => {
+        if (!this.isMonitoring) return;
+        
+        const memory = (performance as any).memory;
+        this.recordMetric('memory-used', memory.usedJSHeapSize);
+        this.recordMetric('memory-total', memory.totalJSHeapSize);
+        
+        const memoryUsagePercent = (memory.usedJSHeapSize / memory.jsHeapSizeLimit) * 100;
+        if (memoryUsagePercent > 80) {
+          console.warn(`High memory usage: ${memoryUsagePercent.toFixed(1)}%`);
         }
-      }, 5000); // Check every 5 seconds
+      }, 5000);
     }
   }
 
@@ -196,10 +215,8 @@ export function initializePerformanceMonitoring(): void {
   const monitor = PerformanceMonitor.getInstance();
   monitor.start();
   
-  // Log performance summary every 30 seconds in development
   if (process.env.NODE_ENV === 'development') {
-    setInterval(() => {
-    }, 30000);
+    monitor.startDevLogging();
   }
 }
 
