@@ -19,9 +19,12 @@ fn get_youtube_client_id() -> String {
         .unwrap_or_else(|_| "311952405738-1cd4o0irnc5b7maihbm3f68qatns9764.apps.googleusercontent.com".to_string())
 }
 
-fn get_youtube_client_secret() -> String {
-    std::env::var("YOUTUBE_CLIENT_SECRET")
-        .expect("YOUTUBE_CLIENT_SECRET environment variable must be set")
+fn get_youtube_client_secret() -> Option<String> {
+    std::env::var("YOUTUBE_CLIENT_SECRET").ok()
+}
+
+fn is_youtube_auth_configured() -> bool {
+    get_youtube_client_secret().is_some()
 }
 
 const REDIRECT_URI: &str = "http://localhost:3000/callback";
@@ -68,6 +71,10 @@ pub async fn start_oauth_server(
     sender: broadcast::Sender<OAuthCallback>,
     alert_sender: broadcast::Sender<AlertPayload>,
 ) -> anyhow::Result<()> {
+    if !is_youtube_auth_configured() {
+        log::warn!("YOUTUBE_CLIENT_SECRET not set. YouTube OAuth will return configuration errors.");
+    }
+    
     let state = Arc::new(OAuthServerState { sender, alert_sender });
     let app = Router::new()
         .route("/callback", get(handle_callback))
@@ -180,9 +187,18 @@ async fn handle_auth_exchange(
 ) -> impl IntoResponse {
     log::info!("Received auth exchange request for YouTube");
     
+    let client_secret = match get_youtube_client_secret() {
+        Some(secret) => secret,
+        None => {
+            log::error!("YouTube auth not configured: YOUTUBE_CLIENT_SECRET not set");
+            return (StatusCode::SERVICE_UNAVAILABLE, axum::Json(ErrorResponse {
+                error: "YouTube authentication is not configured. Please set YOUTUBE_CLIENT_SECRET environment variable.".to_string(),
+            })).into_response();
+        }
+    };
+    
     let client = reqwest::Client::new();
     let client_id = get_youtube_client_id();
-    let client_secret = get_youtube_client_secret();
     
     let params = [
         ("code", payload.code.as_str()),
@@ -252,9 +268,18 @@ async fn handle_auth_refresh(
 ) -> impl IntoResponse {
     log::info!("Received token refresh request for YouTube");
     
+    let client_secret = match get_youtube_client_secret() {
+        Some(secret) => secret,
+        None => {
+            log::error!("YouTube auth not configured: YOUTUBE_CLIENT_SECRET not set");
+            return (StatusCode::SERVICE_UNAVAILABLE, axum::Json(ErrorResponse {
+                error: "YouTube authentication is not configured. Please set YOUTUBE_CLIENT_SECRET environment variable.".to_string(),
+            })).into_response();
+        }
+    };
+    
     let client = reqwest::Client::new();
     let client_id = get_youtube_client_id();
-    let client_secret = get_youtube_client_secret();
     
     let params = [
         ("refresh_token", payload.refresh_token.as_str()),

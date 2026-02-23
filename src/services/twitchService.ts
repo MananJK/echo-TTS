@@ -11,19 +11,103 @@ const recentErrors: { [channelName: string]: { message: string, timestamp: numbe
 
 // Twitch OAuth integration
 const TWITCH_TOKEN_KEY = 'twitchOAuthToken';
+const TWITCH_TOKEN_TIMESTAMP_KEY = 'twitchOAuthTokenTimestamp';
+const TOKEN_STALE_THRESHOLD_MS = 60 * 60 * 1000;
+
+interface TwitchTokenInfo {
+  token: string;
+  timestamp: number;
+}
 
 export const saveTwitchOAuthToken = (token: string): void => {
   try {
-    localStorage.setItem(TWITCH_TOKEN_KEY, token);
+    const tokenInfo: TwitchTokenInfo = {
+      token,
+      timestamp: Date.now()
+    };
+    localStorage.setItem(TWITCH_TOKEN_KEY, JSON.stringify(tokenInfo));
   } catch (error) {
     console.error("TwitchService: Error saving token:", error);
   }
 };
 
+const getTwitchTokenInfo = (): TwitchTokenInfo | null => {
+  try {
+    const stored = localStorage.getItem(TWITCH_TOKEN_KEY);
+    if (!stored) return null;
+    
+    const parsed = JSON.parse(stored);
+    if (typeof parsed === 'string') {
+      return { token: parsed, timestamp: 0 };
+    }
+    return parsed as TwitchTokenInfo;
+  } catch (error) {
+    console.error("TwitchService: Error reading token info:", error);
+    return null;
+  }
+};
+
+export const getTwitchOAuthToken = (): string | null => {
+  const tokenInfo = getTwitchTokenInfo();
+  return tokenInfo?.token || null;
+};
+
+export const isTwitchTokenStale = (): boolean => {
+  const tokenInfo = getTwitchTokenInfo();
+  if (!tokenInfo || tokenInfo.timestamp === 0) return true;
+  
+  const age = Date.now() - tokenInfo.timestamp;
+  return age > TOKEN_STALE_THRESHOLD_MS;
+};
+
+export const getTokenAgeMinutes = (): number | null => {
+  const tokenInfo = getTwitchTokenInfo();
+  if (!tokenInfo || tokenInfo.timestamp === 0) return null;
+  return Math.floor((Date.now() - tokenInfo.timestamp) / (60 * 1000));
+};
+
+export const validateTwitchToken = async (): Promise<{ valid: boolean; username?: string; error?: string }> => {
+  try {
+    const tokenInfo = getTwitchTokenInfo();
+    if (!tokenInfo) {
+      return { valid: false, error: 'No token stored' };
+    }
+    
+    const response = await fetch('https://api.twitch.tv/helix/users', {
+      headers: {
+        'Authorization': `Bearer ${tokenInfo.token}`,
+        'Client-Id': 'udjuiavbj15nv9adih3dioaoj969ny'
+      }
+    });
+    
+    if (response.status === 401) {
+      console.log("TwitchService: Token is invalid (401 response)");
+      return { valid: false, error: 'Token expired or revoked' };
+    }
+    
+    if (!response.ok) {
+      console.error("TwitchService: Token validation failed", response.status);
+      return { valid: false, error: `Validation failed: ${response.status}` };
+    }
+    
+    const data = await response.json();
+    if (data && data.data && data.data.length > 0) {
+      const username = data.data[0].login;
+      console.log("TwitchService: Token validated for user:", username);
+      return { valid: true, username };
+    }
+    
+    return { valid: false, error: 'Unexpected response from Twitch' };
+  } catch (error) {
+    console.error("TwitchService: Error validating token:", error);
+    return { valid: false, error: 'Network error during validation' };
+  }
+};
+
 export const hasTwitchOAuthToken = (): boolean => {
   try {
-    const token = localStorage.getItem(TWITCH_TOKEN_KEY);
-    return !!token;
+    const tokenInfo = getTwitchTokenInfo();
+    return !!tokenInfo?.token;
   } catch (error) {
     console.error("TwitchService: Error checking token:", error);
     return false;
@@ -33,6 +117,7 @@ export const hasTwitchOAuthToken = (): boolean => {
 export const clearTwitchOAuthToken = (): void => {
   try {
     localStorage.removeItem(TWITCH_TOKEN_KEY);
+    localStorage.removeItem(TWITCH_TOKEN_TIMESTAMP_KEY);
   } catch (error) {
     console.error("TwitchService: Error clearing token:", error);
   }
@@ -68,7 +153,7 @@ export const connectToTwitchChat = (
 
   try {
     // Get token from localStorage
-    const token = localStorage.getItem(TWITCH_TOKEN_KEY);
+    const token = getTwitchOAuthToken();
     if (!token) {
       onConnectionChanged(false, 'Not authenticated with Twitch. Please connect using OAuth.');
       return;
@@ -260,7 +345,7 @@ export const isTwitchConnected = (channelName?: string): boolean => {
 // Get current user's Twitch username from token
 export const getTwitchUsername = async (): Promise<string | null> => {
   try {
-    const token = localStorage.getItem(TWITCH_TOKEN_KEY);
+    const token = getTwitchOAuthToken();
     if (!token) {
       return null;
     }

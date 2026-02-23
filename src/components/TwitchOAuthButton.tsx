@@ -1,8 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Twitch, CheckCircle } from 'lucide-react';
+import { Twitch, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { saveTwitchOAuthToken, hasTwitchOAuthToken, clearTwitchOAuthToken } from '@/services/twitchService';
+import { saveTwitchOAuthToken, hasTwitchOAuthToken, clearTwitchOAuthToken, validateTwitchToken, isTwitchTokenStale, getTokenAgeMinutes } from '@/services/twitchService';
 import { openExternalAuth, onAuthCallback, type AuthCallbackData, isTauriAvailable } from '@/lib/tauri-api';
 
 // IMPORTANT: Replace with your Twitch Client ID from https://dev.twitch.tv/console
@@ -20,8 +20,47 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
   const { toast } = useToast();
   const [isAuthorized, setIsAuthorized] = React.useState<boolean>(hasTwitchOAuthToken());
   const [isAuthenticating, setIsAuthenticating] = React.useState<boolean>(false);
+  const [tokenStatus, setTokenStatus] = React.useState<'valid' | 'stale' | 'invalid' | 'checking'>('valid');
 
-  // Add an effect to check token status periodically
+  React.useEffect(() => {
+    if (!hasTwitchOAuthToken()) {
+      return;
+    }
+
+    const validateToken = async () => {
+      setTokenStatus('checking');
+      
+      if (isTwitchTokenStale()) {
+        const ageMinutes = getTokenAgeMinutes();
+        console.log("TwitchService: Token is stale (age:", ageMinutes, "minutes), validating...");
+      }
+      
+      const result = await validateTwitchToken();
+      
+      if (result.valid) {
+        setTokenStatus('valid');
+      } else {
+        console.log("TwitchService: Token validation failed:", result.error);
+        setTokenStatus('invalid');
+        clearTwitchOAuthToken();
+        setIsAuthorized(false);
+        onAuthChange(false);
+        
+        toast({
+          title: "Twitch Session Expired",
+          description: "Your Twitch authentication has expired. Please reconnect.",
+          variant: "destructive"
+        });
+      }
+    };
+
+    validateToken();
+    
+    const intervalId = setInterval(validateToken, 5 * 60 * 1000);
+    
+    return () => clearInterval(intervalId);
+  }, [onAuthChange, toast]);
+
   React.useEffect(() => {
     const checkToken = () => {
       const hasToken = hasTwitchOAuthToken();
@@ -29,9 +68,11 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
         setIsAuthorized(hasToken);
         onAuthChange(hasToken);
       }
+      if (hasToken && isTwitchTokenStale()) {
+        setTokenStatus('stale');
+      }
     };
 
-    // Check immediately and then every second
     checkToken();
     const intervalId = setInterval(checkToken, 1000);
     return () => clearInterval(intervalId);
@@ -172,30 +213,56 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
   return (
     <div className="flex flex-col space-y-2">
       {isAuthorized ? (
-        <Button 
-          variant="outline" 
-          className="bg-green-500 text-white hover:bg-purple-600 w-full"
-          onClick={handleDisconnect}
-        >
-          <CheckCircle className="mr-2 h-4 w-4" />
-          Connected to Twitch
-        </Button>
-      ) : (
         <>
           <Button 
             variant="outline" 
-            className={`${isAuthenticating ? 'bg-yellow-500' : 'bg-purple-500'} text-white hover:bg-purple-600 w-full`}
-            onClick={handleConnect}
-            disabled={isAuthenticating}
+            className={`text-white w-full ${
+              tokenStatus === 'invalid' ? 'bg-red-500 hover:bg-red-600' :
+              tokenStatus === 'stale' ? 'bg-yellow-500 hover:bg-yellow-600' :
+              'bg-green-500 hover:bg-purple-600'
+            }`}
+            onClick={handleDisconnect}
           >
-            <Twitch className="mr-2 h-4 w-4" />
-            {isAuthenticating ? 'Authenticating...' : 'Log in with Twitch'}
+            {tokenStatus === 'invalid' || tokenStatus === 'stale' ? (
+              <AlertCircle className="mr-2 h-4 w-4" />
+            ) : (
+              <CheckCircle className="mr-2 h-4 w-4" />
+            )}
+            {tokenStatus === 'checking' ? 'Verifying...' :
+             tokenStatus === 'invalid' ? 'Session Expired' :
+             tokenStatus === 'stale' ? 'Reconnect Recommended' :
+             'Connected to Twitch'}
           </Button>
+          {(tokenStatus === 'stale' || tokenStatus === 'invalid') && (
+            <Button 
+              variant="outline" 
+              className="bg-purple-500 text-white hover:bg-purple-600 w-full"
+              onClick={handleConnect}
+              disabled={isAuthenticating}
+            >
+              <Twitch className="mr-2 h-4 w-4" />
+              {isAuthenticating ? 'Reconnecting...' : 'Reconnect Twitch'}
+            </Button>
+          )}
         </>
+      ) : (
+        <Button 
+          variant="outline" 
+          className={`${isAuthenticating ? 'bg-yellow-500' : 'bg-purple-500'} text-white hover:bg-purple-600 w-full`}
+          onClick={handleConnect}
+          disabled={isAuthenticating}
+        >
+          <Twitch className="mr-2 h-4 w-4" />
+          {isAuthenticating ? 'Authenticating...' : 'Log in with Twitch'}
+        </Button>
       )}
       <p className="text-xs text-muted-foreground">
         {isAuthorized 
-          ? "Authorized with Twitch. You can now connect to channels." 
+          ? tokenStatus === 'stale' 
+            ? "Token may be stale. Consider reconnecting for best reliability." 
+            : tokenStatus === 'invalid'
+              ? "Your session has expired. Please reconnect."
+              : "Authorized with Twitch. You can now connect to channels."
           : "Authorize with Twitch to connect to chat channels."}
       </p>
     </div>

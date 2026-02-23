@@ -51,7 +51,7 @@ export const onAuthCallback = (callback: (data: AuthCallbackData) => void): (() 
     
     const data = event.payload;
     
-    window.postMessage(data, '*');
+    window.postMessage(data, window.location.origin);
     
     callback(data);
   });
@@ -72,7 +72,7 @@ export const onAlert = (callback: (data: AlertData) => void): (() => void) => {
     
     const data = event.payload;
     
-    window.postMessage(data, '*');
+    window.postMessage(data, window.location.origin);
     
     callback(data);
   });
