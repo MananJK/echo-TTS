@@ -1,7 +1,6 @@
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { HashRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState, lazy, Suspense } from "react";
 import { hasYoutubeOAuthToken } from "./services/youtubeService";
@@ -14,17 +13,6 @@ import AlertNotification from "./components/AlertNotification";
 const Index = lazy(() => import("./pages/Index"));
 const Login = lazy(() => import("./pages/Login"));
 const NotFound = lazy(() => import("./pages/NotFound"));
-
-// Initialize QueryClient with better performance settings
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 1000 * 60 * 5,
-      gcTime: 1000 * 60 * 30,
-      retry: 1,
-    },
-  },
-});
 
 // Protected route component that redirects to login if not authenticated
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
@@ -62,29 +50,27 @@ const App = () => {
   }, []);
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <AlertNotification />
-        <Suspense fallback={<Loading isStartup={true} message="Loading StreamTTS..." />}>
-          <HashRouter>
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              <Route 
-                path="/" 
-                element={
-                  <ProtectedRoute>
-                    <Index />
-                  </ProtectedRoute>
-                } 
-              />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </HashRouter>
-        </Suspense>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <AlertNotification />
+      <Suspense fallback={<Loading isStartup={true} message="Loading StreamTTS..." />}>
+        <HashRouter>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route 
+              path="/" 
+              element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </HashRouter>
+      </Suspense>
+    </TooltipProvider>
   );
 };
 

@@ -173,8 +173,8 @@ export async function playMessageAudio(
   voiceName?: string
 ): Promise<void> {
   try {
-    // Extract the actual text without the !r command
-    const textToSpeak = message.content.replace(/^!r\s*/i, '');
+    // Extract the actual text without the !г (Russian r) command
+    const textToSpeak = message.content.replace(/^!г\s*/i, '');
     
     if (provider === 'browser') {
       // Use browser's built-in speech synthesis (no token limits)

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AlertService, type AlertData } from '@/services/alertsService';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,6 +10,15 @@ interface AlertNotificationProps {
 
 const AlertNotification: React.FC<AlertNotificationProps> = ({ className }) => {
   const [alerts, setAlerts] = useState<(AlertData & { id: string })[]>([]);
+  const timeoutIdsRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const timeouts = timeoutIdsRef.current;
+    return () => {
+      timeouts.forEach(timeoutId => clearTimeout(timeoutId));
+      timeouts.clear();
+    };
+  }, []);
 
   useEffect(() => {
     const alertService = AlertService.getInstance();
@@ -19,9 +28,12 @@ const AlertNotification: React.FC<AlertNotificationProps> = ({ className }) => {
       setAlerts(prev => [...prev, alertWithId]);
 
       // Auto-dismiss after 5 seconds
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setAlerts(prev => prev.filter(a => a.id !== alertWithId.id));
+        timeoutIdsRef.current.delete(alertWithId.id);
       }, 5000);
+
+      timeoutIdsRef.current.set(alertWithId.id, timeoutId);
     };
 
     alertService.addAlertListener(handleAlert);
@@ -32,6 +44,11 @@ const AlertNotification: React.FC<AlertNotificationProps> = ({ className }) => {
   }, []);
 
   const dismissAlert = (id: string) => {
+    const timeoutId = timeoutIdsRef.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutIdsRef.current.delete(id);
+    }
     setAlerts(prev => prev.filter(a => a.id !== id));
   };
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Twitch, Youtube, CheckCircle, XCircle } from 'lucide-react';
@@ -11,8 +11,8 @@ interface ConnectionStatusPanelProps {
 }
 
 const ConnectionStatusPanel: React.FC<ConnectionStatusPanelProps> = ({ connections }) => {
-  const isTwitchAuthed = hasTwitchOAuthToken();
-  const isYoutubeAuthed = hasYoutubeOAuthToken();
+  const isTwitchAuthed = useMemo(() => hasTwitchOAuthToken(), []);
+  const isYoutubeAuthed = useMemo(() => hasYoutubeOAuthToken(), []);
   
   // Count active connections by type
   const twitchConnections = connections.filter(conn => conn.type === 'twitch' && conn.isConnected);
