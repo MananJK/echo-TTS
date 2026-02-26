@@ -133,6 +133,13 @@ export const clearTwitchOAuthToken = (): void => {
   }
 };
 
+// Validate channel name to prevent injection attacks
+const isValidChannelName = (name: string): boolean => {
+  if (!name || typeof name !== 'string') return false;
+  const channelNameRegex = /^[a-zA-Z0-9_]{2,25}$/;
+  return channelNameRegex.test(name);
+};
+
 // Helper function to check if we should report an error
 // This prevents duplicate error notifications for the same channel/error
 const shouldReportError = (channelName: string, errorMessage: string): boolean => {
@@ -155,6 +162,12 @@ export const connectToTwitchChat = (
   onMessageReceived: MessageCallback,
   onConnectionChanged: ConnectionCallback
 ): void => {
+  // Validate channel name to prevent injection attacks
+  if (!isValidChannelName(channelName)) {
+    onConnectionChanged(false, 'Invalid channel name. Use 2-25 alphanumeric characters or underscores.');
+    return;
+  }
+
   // Disconnect existing client for this channel if any
   if (twitchClients[channelName]) {
     twitchClients[channelName].disconnect();

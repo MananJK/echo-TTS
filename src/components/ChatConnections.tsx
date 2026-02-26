@@ -79,6 +79,15 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     };
     
     const handleAuthCallback = async (event: MessageEvent) => {
+      const validOrigins = [
+        window.location.origin,
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080'
+      ];
+      if (!validOrigins.includes(event.origin)) {
+        return;
+      }
       
       if (event.data && event.data.type === 'twitch-oauth-callback' && event.data.token) {
         saveTwitchOAuthToken(event.data.token);

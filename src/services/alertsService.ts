@@ -37,6 +37,17 @@ export class AlertService {
   }
 
   private handlePostMessage = (event: MessageEvent) => {
+    // Validate origin for security - only accept messages from trusted origins
+    const validOrigins = [
+      window.location.origin,
+      'http://localhost:3000',
+      'http://localhost:5173',
+      'http://localhost:8080'
+    ];
+    if (!validOrigins.includes(event.origin)) {
+      return;
+    }
+    
     if (event.source !== window) return;
     
     const data = event.data;
