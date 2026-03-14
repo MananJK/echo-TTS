@@ -26,13 +26,31 @@ pub struct TwitchSubscription {
     pub condition: serde_json::Value,
 }
 
+/// Sanitize a string for safe display - strip control chars and HTML-significant chars
+fn sanitize(input: &str) -> String {
+    input
+        .chars()
+        .filter(|c| !c.is_control() || *c == ' ')
+        .map(|c| match c {
+            '<' | '>' | '&' | '"' | '\'' => '_',
+            _ => c,
+        })
+        .take(100)
+        .collect::<String>()
+        .trim()
+        .to_string()
+}
+
 pub fn process_twitch_event(payload: TwitchEventSubPayload) -> Option<AlertPayload> {
     let event = &payload.event;
     let r#type = &payload.subscription.r#type;
 
     match r#type.as_str() {
         "channel.subscribe" => {
-            let user_name = event["user_name"].as_str()?.to_string();
+            let user_name = sanitize(event["user_name"].as_str()?);
+            if user_name.is_empty() {
+                return None;
+            }
             Some(AlertPayload {
                 platform: "twitch".to_string(),
                 alert_type: "sub".to_string(),
@@ -44,7 +62,10 @@ pub fn process_twitch_event(payload: TwitchEventSubPayload) -> Option<AlertPaylo
             })
         }
         "channel.subscription.gift" => {
-            let user_name = event["user_name"].as_str()?.to_string();
+            let user_name = sanitize(event["user_name"].as_str()?);
+            if user_name.is_empty() {
+                return None;
+            }
             let total = event["total"].as_u64()? as u32;
             Some(AlertPayload {
                 platform: "twitch".to_string(),
@@ -57,8 +78,14 @@ pub fn process_twitch_event(payload: TwitchEventSubPayload) -> Option<AlertPaylo
             })
         }
         "channel.channel_points_custom_reward_redemption.add" => {
-            let user_name = event["user_name"].as_str()?.to_string();
-            let reward_title = event["reward"]["title"].as_str()?.to_string();
+            let user_name = sanitize(event["user_name"].as_str()?);
+            if user_name.is_empty() {
+                return None;
+            }
+            let reward_title = sanitize(event["reward"]["title"].as_str()?);
+            if reward_title.is_empty() {
+                return None;
+            }
             Some(AlertPayload {
                 platform: "twitch".to_string(),
                 alert_type: "redemption".to_string(),
@@ -74,11 +101,7 @@ pub fn process_twitch_event(payload: TwitchEventSubPayload) -> Option<AlertPaylo
 }
 
 pub fn process_youtube_alert(xml_content: &str) -> Option<AlertPayload> {
-    // Simple XML parsing for YouTube Atom feed
-    // In a real scenario, we'd use a proper XML parser
     if xml_content.contains("<yt:videoId>") {
-        // This is likely a video upload notification
-        // We could extract details here
         return Some(AlertPayload {
             platform: "youtube".to_string(),
             alert_type: "live".to_string(),
