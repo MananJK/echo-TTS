@@ -83,6 +83,7 @@ dependencies = [
  "axum",
  "chrono",
  "dotenv",
+ "hex",
  "hmac",
  "http-body-util",
  "hyper",
