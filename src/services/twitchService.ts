@@ -1,4 +1,5 @@
 import { Client } from 'tmi.js';
+import { TWITCH_CLIENT_ID } from '@/config/security';
 
 type MessageCallback = (username: string, message: string) => void;
 type ConnectionCallback = (connected: boolean, error?: string) => void;
@@ -86,7 +87,7 @@ export const validateTwitchToken = async (): Promise<{ valid: boolean; username?
     const response = await fetch('https://api.twitch.tv/helix/users', {
       headers: {
         'Authorization': `Bearer ${tokenInfo.token}`,
-        'Client-Id': 'udjuiavbj15nv9adih3dioaoj969ny'
+        'Client-Id': TWITCH_CLIENT_ID
       }
     });
     
@@ -185,7 +186,7 @@ export const connectToTwitchChat = (
     const client = new Client({
       options: { 
         debug: false,
-        clientId: 'udjuiavbj15nv9adih3dioaoj969ny'
+        clientId: TWITCH_CLIENT_ID
       },
       connection: {
         secure: true,
@@ -393,7 +394,7 @@ export const getTwitchUsername = async (): Promise<string | null> => {
     const response = await fetch('https://api.twitch.tv/helix/users', {
       headers: {
         'Authorization': `Bearer ${token}`,
-        'Client-Id': 'udjuiavbj15nv9adih3dioaoj969ny'
+        'Client-Id': TWITCH_CLIENT_ID
       }
     });
     
