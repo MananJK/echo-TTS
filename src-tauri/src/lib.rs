@@ -109,7 +109,7 @@ tauri::Builder::default()
 async fn open_oauth_url(
     url: String,
 ) -> Result<(), String> {
-    log::info!("Opening OAuth URL: {}", url);
+    log::info!("Opening OAuth URL in browser");
     
     open::that(&url)
         .map_err(|e| format!("Failed to open URL: {}", e))?;
