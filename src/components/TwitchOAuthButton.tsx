@@ -4,11 +4,8 @@ import { Twitch, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { saveTwitchOAuthToken, hasTwitchOAuthToken, clearTwitchOAuthToken, validateTwitchToken, isTwitchTokenStale, getTokenAgeMinutes } from '@/services/twitchService';
 import { openExternalAuth, onAuthCallback, type AuthCallbackData, isTauriAvailable } from '@/lib/tauri-api';
+import { TWITCH_CLIENT_ID, generateOAuthState } from '@/config/security';
 
-// IMPORTANT: Replace with your Twitch Client ID from https://dev.twitch.tv/console
-const TWITCH_CLIENT_ID = 'udjuiavbj15nv9adih3dioaoj969ny'; // Public Twitch Client ID used by web player
-// Use our local server running on port 3000 that will handle the callback
-// For Twitch, we'll keep using the /callback path which is working
 const REDIRECT_URI = 'http://localhost:3000/callback';
 const WEB_REDIRECT_URI = 'http://localhost:3000/callback';
 
@@ -174,8 +171,8 @@ const TwitchOAuthButton: React.FC<TwitchOAuthButtonProps> = ({ onAuthChange }) =
     
     authUrl.searchParams.append('response_type', 'token');
     authUrl.searchParams.append('scope', scopes.join(' '));
-    authUrl.searchParams.append('force_verify', 'true'); // Force user to verify credentials
-    authUrl.searchParams.append('state', 'twitch_auth_' + Date.now()); // Add state for identification
+    authUrl.searchParams.append('force_verify', 'true');
+    authUrl.searchParams.append('state', generateOAuthState('twitch'));
     
     const fullAuthUrl = authUrl.toString();
     

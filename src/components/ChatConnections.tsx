@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Twitch, Youtube, X, LogIn, CheckCircle, LogOut, PlugIcon, Power } from 'lucide-react';
 import { ChatConnection, ChatSource } from '@/types/chatSource';
 import { useToast } from '@/hooks/use-toast';
+import { TWITCH_CLIENT_ID, YOUTUBE_CLIENT_ID, OAUTH_REDIRECT_URI, generateOAuthState, validateOAuthState } from '@/config/security';
 import { 
   connectToTwitchChat, 
   disconnectFromTwitchChat,
@@ -82,10 +83,21 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
       const validOrigins = [
         window.location.origin,
         'http://localhost:3000',
-        'http://localhost:5173',
         'http://localhost:8080'
       ];
       if (!validOrigins.includes(event.origin)) {
+        return;
+      }
+
+      // Validate CSRF state parameter if present
+      if (event.data && event.data.state && !validateOAuthState(event.data.state)) {
+        console.error('OAuth state validation failed - possible CSRF attack');
+        toast({
+          id: 'oauth-csrf-error',
+          title: "Security Error",
+          description: "OAuth state validation failed. Please try authenticating again.",
+          variant: "destructive"
+        });
         return;
       }
       
@@ -856,18 +868,15 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
   // Handle Twitch OAuth login
   const handleTwitchAuth = () => {
-    const TWITCH_CLIENT_ID = 'udjuiavbj15nv9adih3dioaoj969ny';
-    const REDIRECT_URI = 'http://localhost:3000/callback';
-    
     // Twitch OAuth implicit flow
     const scopes = ['chat:read', 'chat:edit'];
     const authUrl = new URL('https://id.twitch.tv/oauth2/authorize');
     authUrl.searchParams.append('client_id', TWITCH_CLIENT_ID);
-    authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
+    authUrl.searchParams.append('redirect_uri', OAUTH_REDIRECT_URI);
     authUrl.searchParams.append('response_type', 'token');
     authUrl.searchParams.append('scope', scopes.join(' '));
     authUrl.searchParams.append('force_verify', 'true');
-    authUrl.searchParams.append('state', 'twitch_auth_' + Date.now());
+    authUrl.searchParams.append('state', generateOAuthState('twitch'));
     
     const fullAuthUrl = authUrl.toString();
     
@@ -879,7 +888,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     // Check if we're running in Electron
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        (window as any).electron.openExternalAuth(fullAuthUrl, REDIRECT_URI);
+        (window as any).electron.openExternalAuth(fullAuthUrl, OAUTH_REDIRECT_URI);
       } catch (error) {
         console.error("Error opening Twitch auth URL:", error);
         toast({
@@ -917,27 +926,22 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
 
   // Handle YouTube OAuth login
   const handleYouTubeAuth = () => {
-    // Google OAuth Client ID 
-    const YOUTUBE_CLIENT_ID = '311952405738-1cd4o0irnc5b7maihbm3f68qatns9764.apps.googleusercontent.com';
-    const REDIRECT_URI = 'http://localhost:3000/callback';
-    
     // YouTube OAuth flow with full permissions for chat and broadcasts
     const scopes = [
       'https://www.googleapis.com/auth/youtube.readonly',
       'https://www.googleapis.com/auth/youtube.force-ssl',
-      'https://www.googleapis.com/auth/youtube',  // Full YouTube scope
-      'https://www.googleapis.com/auth/youtube.upload'  // For more capabilities if needed
+      'https://www.googleapis.com/auth/youtube',
+      'https://www.googleapis.com/auth/youtube.upload'
     ];
     
     const authUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
     authUrl.searchParams.append('client_id', YOUTUBE_CLIENT_ID);
-    authUrl.searchParams.append('redirect_uri', REDIRECT_URI);
+    authUrl.searchParams.append('redirect_uri', OAUTH_REDIRECT_URI);
     authUrl.searchParams.append('response_type', 'token');
     authUrl.searchParams.append('scope', scopes.join(' '));
-    authUrl.searchParams.append('prompt', 'consent'); // Always prompt for consent to refresh permissions
-    // Note: access_type=offline cannot be used with response_type=token (implicit flow)
+    authUrl.searchParams.append('prompt', 'consent');
     authUrl.searchParams.append('include_granted_scopes', 'true');
-    authUrl.searchParams.append('state', 'youtube_auth_' + Date.now());
+    authUrl.searchParams.append('state', generateOAuthState('youtube'));
     
     const fullAuthUrl = authUrl.toString();
     
@@ -949,7 +953,7 @@ const ChatConnections: React.FC<ChatConnectionsProps> = ({
     // Check if we're running in Electron
     if (typeof window !== 'undefined' && (window as any).electron) {
       try {
-        (window as any).electron.openExternalAuth(fullAuthUrl, REDIRECT_URI);
+        (window as any).electron.openExternalAuth(fullAuthUrl, OAUTH_REDIRECT_URI);
       } catch (error) {
         console.error("Error opening YouTube auth URL:", error);
         toast({

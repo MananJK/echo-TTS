@@ -7,6 +7,12 @@ export const isTauriAvailable = (): boolean => {
          '__TAURI__' in window;
 };
 
+// Allowed origins for postMessage - only accept from our own server
+const TRUSTED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:8080',
+];
+
 export interface AuthCallbackData {
   type: string;
   token: string;
@@ -48,11 +54,7 @@ export const onAuthCallback = (callback: (data: AuthCallbackData) => void): (() 
   }
   
   const unlisten = listen<AuthCallbackData>('auth-callback', (event) => {
-    
     const data = event.payload;
-    
-    window.postMessage(data, window.location.origin);
-    
     callback(data);
   });
   
@@ -69,11 +71,7 @@ export const onAlert = (callback: (data: AlertData) => void): (() => void) => {
   }
   
   const unlisten = listen<AlertData>('integration-alert', (event) => {
-    
     const data = event.payload;
-    
-    window.postMessage(data, window.location.origin);
-    
     callback(data);
   });
   
